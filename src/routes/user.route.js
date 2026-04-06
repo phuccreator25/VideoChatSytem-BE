@@ -13,5 +13,6 @@ userRouter.post('/auth/forgot-password', USER_CONTROLLER.onForgotPassword)
 userRouter.post('/auth/reset-password/:email', USER_CONTROLLER.onResetPassword)
 
 userRouter.get('/users', authMiddleware, USER_CONTROLLER.onGetUsers)
+userRouter.put('/users', authMiddleware, USER_CONTROLLER.onUpdate)
 
 export default userRouter

@@ -129,16 +129,6 @@ const onResetPassword = async (req, res, next) => {
   }
 };
 
-const onGetUsers = async (req, res, next) => {
-  try {
-    const users = await USER_SERVICE.onGetUsers(req.user);
-    return res.status(200).json({
-      data: users,
-    });
-  } catch (error) {
-    next(error);
-  }
-};
 
 const onRefreshToken = async (req, res, next) => {
   try {
@@ -147,9 +137,9 @@ const onRefreshToken = async (req, res, next) => {
     if (!refreshToken) {
       throw new Error("Vui lòng đăng nhập tài khoản lại");
     }
-
+    
     const result = await USER_SERVICE.onRefreshToken(refreshToken);
-
+    
     const isProduction = process.env.NODE_ENV === "production";
 
     res.cookie("accessToken", result.token, {
@@ -163,7 +153,7 @@ const onRefreshToken = async (req, res, next) => {
       secure: isProduction,
       sameSite: "strict",
     });
-
+    
     return res.status(200).json({
       data: result.data
     });
@@ -173,6 +163,33 @@ const onRefreshToken = async (req, res, next) => {
   }
 }
 
+const onGetUsers = async (req, res, next) => {
+  try {
+    const users = await USER_SERVICE.onGetUsers(req.user);
+    return res.status(200).json({
+      data: users,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+const onUpdate = async (req, res, next) => {
+  try {
+    const user = await USER_SERVICE.onUpdateUser({
+      _id: req.user.id,
+      payload: req.body
+    });
+
+    return res.status(200).json({
+      message: "Cập nhật thành công",
+      data: user
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 export const USER_CONTROLLER = {
   onRegister,
   onActivateAccount,
@@ -181,5 +198,6 @@ export const USER_CONTROLLER = {
   onForgotPassword,
   onResetPassword,
   onGetUsers,
-  onRefreshToken
+  onRefreshToken,
+  onUpdate
 };

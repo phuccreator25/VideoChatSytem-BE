@@ -48,6 +48,19 @@ const updateOne = async (data) => {
       }
     )
 }
+
+const updateById = async ({ _id, data }) => {
+  const result = await GET_DB()
+    .collection(USER_MODEL.COLECTION_USER_NAME)
+    .findOneAndUpdate(
+      { _id: new ObjectId(_id) },
+      { $set: data },
+      { returnDocument: "after" }
+    );
+
+  return result;
+};
+
 export const USER_REPOSITORY = {
-    createOne, findById, findByEmail, activeAcount, updateOne
+    createOne, findById, findByEmail, activeAcount, updateOne, updateById
 }

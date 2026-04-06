@@ -232,6 +232,43 @@ const handleUpdateDeviceSession = async (data) => {
   }
 };
 
+const onUpdateUser = async ({ _id, payload }) => {
+  try {
+    const user = await USER_REPOSITORY.findById(_id)
+
+    if (!user) throw new Error("Không tìm thấy tài khoản cần cập nhật")
+
+    let updateData = { ...payload }
+
+    if (payload.password) {
+      if (!payload.currentPass) {
+        throw new Error("Vui lòng nhập mật khẩu hiện tại")
+      }
+
+      const isMatch = await bcrypt.compare(payload.currentPass, user.password)
+
+      if (!isMatch) {
+        throw new Error("Mật khẩu hiện tại không đúng")
+      }
+
+      const saltRounds = 10
+      const hashedPassword = await bcrypt.hash(payload.password, saltRounds)
+
+      updateData = {
+        password: hashedPassword
+      }
+    }
+
+    return await USER_REPOSITORY.updateById({
+      _id,
+      data: updateData
+    })
+  } catch (error) {
+    console.log("UPDATE USER: ", error)
+    throw error
+  }
+}
+
 const onRefreshToken = async (refreshToken) => {
   try {
     const session = await DEVICE_SESSION_REPOSITORY.findOne({
@@ -289,4 +326,5 @@ export const USER_SERVICE = {
   onResetPassword,
   onGetUsers,
   onRefreshToken,
+  onUpdateUser
 };
