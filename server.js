@@ -4,6 +4,9 @@ import cors from 'cors';
 import dotenv from 'dotenv'
 import userRouter from './src/routes/user.route.js';
 import cookieParser from 'cookie-parser';
+import { arjectProtection } from './src/middleware/arject.middleware.js';
+import invitationRouter from './src/routes/invitation.route.js';
+import contactRouter from './src/routes/contacts.route.js';
 dotenv.config();
 
 const SERVER = async() => {
@@ -21,7 +24,10 @@ const SERVER = async() => {
     app.use(express.json());
 
     app.use(cookieParser());
+    app.use(arjectProtection); // Rate Limit và Prevent Bots
     app.use('/api', userRouter);
+    app.use('/api', invitationRouter);
+    app.use('/api', contactRouter);
 
     app.use((err, req, res, next) => { // Error middleware này run global, tất cả router có next Error đều xuống đây
         const statusCode = err.statusCode || 500

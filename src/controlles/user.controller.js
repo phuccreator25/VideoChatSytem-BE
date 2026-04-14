@@ -1,3 +1,4 @@
+import env from "../config/env.js";
 import { USER_SERVICE } from "../service/user.service.js";
 
 const onRegister = async (req, res, next) => {
@@ -15,7 +16,7 @@ const onRegister = async (req, res, next) => {
 
 const onActivateAccount = async (req, res, next) => {
   try {
-    const dataActivated = await USER_SERVICE.onActiveAccount(req.body);
+    const dataActivated = await USER_SERVICE.onActiveAccount(req.body.email);
     return res.status(200).json({
       data: dataActivated,
     });
@@ -46,7 +47,7 @@ const onLogin = async (req, res, next) => {
 
     const dataLogin = await USER_SERVICE.onLogin(metaData);
 
-    const isProduction = process.env.NODE_ENV === "production";
+    const isProduction = env.NODE_ENV === "production";
 
     res.cookie("accessToken", dataLogin.token, {
       httpOnly: true,
@@ -71,7 +72,7 @@ const onLogin = async (req, res, next) => {
 
 const onLogOut = async (req, res, next) => {
   try {
-    const isProduction = process.env.NODE_ENV === "production";
+    const isProduction = env.NODE_ENV === "production";
 
     const accessToken = req.cookies?.accessToken;
     if (!accessToken) {
@@ -137,10 +138,10 @@ const onRefreshToken = async (req, res, next) => {
     if (!refreshToken) {
       throw new Error("Vui lòng đăng nhập tài khoản lại");
     }
-    
+
     const result = await USER_SERVICE.onRefreshToken(refreshToken);
-    
-    const isProduction = process.env.NODE_ENV === "production";
+
+    const isProduction = env.NODE_ENV === "production";
 
     res.cookie("accessToken", result.token, {
       httpOnly: true,
@@ -153,7 +154,7 @@ const onRefreshToken = async (req, res, next) => {
       secure: isProduction,
       sameSite: "strict",
     });
-    
+
     return res.status(200).json({
       data: result.data
     });
@@ -190,6 +191,44 @@ const onUpdate = async (req, res, next) => {
   }
 };
 
+const onUpdateAvatar = async (req, res, next) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({
+        message: 'Không có file gửi lên'
+      })
+    }
+
+    const user = await USER_SERVICE.onUpdateUser({
+      _id: req.user.id,
+      payload: {file: req.file}
+    });
+
+    return res.status(200).json({
+      data: user
+    });
+  } catch (error) {
+    next(error)
+  }
+}
+
+const onSearchUser = async(req, res, next) => {
+  try {
+    const  keyword = req.params.searchValue;
+    
+    const users = await USER_SERVICE.onSearchUser({
+      keyword: keyword,
+      currentUserId: req.user.id
+    });
+
+    return res.status(200).json({
+      data: users
+    })
+  } catch (error) {
+    next(error)
+  }
+}
+
 export const USER_CONTROLLER = {
   onRegister,
   onActivateAccount,
@@ -199,5 +238,7 @@ export const USER_CONTROLLER = {
   onResetPassword,
   onGetUsers,
   onRefreshToken,
-  onUpdate
+  onUpdate,
+  onUpdateAvatar,
+  onSearchUser
 };

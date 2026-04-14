@@ -1,6 +1,7 @@
 import { Router } from 'express'
 import { USER_CONTROLLER } from '../controlles/user.controller.js'
 import { authMiddleware } from '../middleware/authMiddleware.js'
+import { upload } from '../middleware/upload.middleware.js'
 
 const userRouter = Router()
 
@@ -14,5 +15,7 @@ userRouter.post('/auth/reset-password/:email', USER_CONTROLLER.onResetPassword)
 
 userRouter.get('/users', authMiddleware, USER_CONTROLLER.onGetUsers)
 userRouter.put('/users', authMiddleware, USER_CONTROLLER.onUpdate)
+userRouter.put('/users/avatar', authMiddleware, upload.single('file'), USER_CONTROLLER.onUpdateAvatar)
 
+userRouter.get(`/users/search/:searchValue`, authMiddleware, USER_CONTROLLER.onSearchUser)
 export default userRouter

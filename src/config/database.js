@@ -26,4 +26,4 @@ export const GET_DB = () => {
   return db
 }
 
-export { client }
+export { client } 

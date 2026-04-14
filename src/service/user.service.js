@@ -6,6 +6,9 @@ import { USER_REPOSITORY } from "../repository/user.repository.js";
 import bcrypt from "bcrypt";
 import { randomBytes, randomUUID } from "crypto";
 import jwt, { decode } from "jsonwebtoken";
+import env from "../config/env.js";
+import cloudinary from "../config/cloudinary.js";
+import { uploadBufferToCloudinary } from "../helper/uploadBuffer.js";
 
 const onRegister = async (payload) => {
   try {
@@ -63,6 +66,8 @@ const onLogin = async (payload) => {
     const user = await USER_REPOSITORY.findByEmail(payload.email);
 
     if (!user) throw new Error("Tài khoản không tồn tại");
+
+    if(!user.isActive) throw new Error("Tài khoản chưa được kích hoạt");
 
     const isPasswordValid = await bcrypt.compare(
       payload.password,
@@ -169,7 +174,7 @@ const handleDeviceSession = async (data) => {
   const expiredAt = addDay(EXP_REFRESH_TOKEN);
   const sessionId = randomBytes(32).toString("hex");
 
-  const token = jwt.sign({ id: data._id, sessionId }, process.env.JWT_SECRET, {
+  const token = jwt.sign({ id: data._id, sessionId }, env.JWT_SECRET, {
     expiresIn: `${EXP_TOKEN}m`,
   });
 
@@ -204,7 +209,7 @@ const handleUpdateDeviceSession = async (data) => {
 
     const token = jwt.sign(
       { id: data.userId, sessionId },
-      process.env.JWT_SECRET,
+      env.JWT_SECRET,
       { expiresIn: `${EXP_TOKEN}m` },
     );
 
@@ -235,10 +240,17 @@ const handleUpdateDeviceSession = async (data) => {
 const onUpdateUser = async ({ _id, payload }) => {
   try {
     const user = await USER_REPOSITORY.findById(_id)
-
     if (!user) throw new Error("Không tìm thấy tài khoản cần cập nhật")
 
-    let updateData = { ...payload }
+    const updateData = {}
+
+    if (payload.fullname !== undefined) {
+      updateData.fullname = payload.fullname
+    }
+
+    if (payload.username !== undefined) {
+      updateData.username = payload.username
+    }
 
     if (payload.password) {
       if (!payload.currentPass) {
@@ -246,17 +258,33 @@ const onUpdateUser = async ({ _id, payload }) => {
       }
 
       const isMatch = await bcrypt.compare(payload.currentPass, user.password)
-
       if (!isMatch) {
         throw new Error("Mật khẩu hiện tại không đúng")
       }
 
       const saltRounds = 10
       const hashedPassword = await bcrypt.hash(payload.password, saltRounds)
+      updateData.password = hashedPassword
+    }
 
-      updateData = {
-        password: hashedPassword
+    if (payload.file) {
+      if(user.avatar){
+        const OldAvatar = getPublicIdAvatar(user.avatar);
+
+        if(OldAvatar){
+          try {
+            await cloudinary.uploader.destroy(OldAvatar)
+          } catch (error) {
+            console.log('DELETE OLD AVATAR ERROR:', error)
+          }
+        }
       }
+      
+      const upload = await uploadBufferToCloudinary(payload.file.buffer, {
+        folder: 'Chat_System_Avatars'
+      })
+
+      updateData.avatar = upload.secure_url
     }
 
     return await USER_REPOSITORY.updateById({
@@ -311,10 +339,38 @@ const onRefreshToken = async (refreshToken) => {
   }
 };
 
-export const addDay = (days) => {
+const addDay = (days) => {
   const date = new Date();
   date.setDate(date.getDate() + days);
   return date;
+};
+
+const getPublicIdAvatar = (url) => {
+  if (!url) return null
+
+  const parts = url.split('/upload/')
+  if (parts.length < 2) return null
+
+  const pathWithVersion = parts[1]
+  const pathWithoutVersion = pathWithVersion.replace(/^v\d+\//, '')
+  const publicId = pathWithoutVersion.replace(/\.[^/.]+$/, '')
+
+  return publicId
+}
+
+const onSearchUser = async ({ keyword, currentUserId }) => {
+  try {
+    if (!keyword?.trim()) return [];
+
+    const users = await USER_REPOSITORY.findByUser({
+      keyword,
+      currentUserId
+    });
+
+    return users;
+  } catch (error) {
+    throw error;
+  }
 };
 
 export const USER_SERVICE = {
@@ -326,5 +382,6 @@ export const USER_SERVICE = {
   onResetPassword,
   onGetUsers,
   onRefreshToken,
-  onUpdateUser
+  onUpdateUser,
+  onSearchUser
 };
