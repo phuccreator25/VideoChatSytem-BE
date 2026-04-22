@@ -11,5 +11,6 @@ invitationRouter.post('/invitations/cancel-sent', authMiddleware, INVITATION_CON
 invitationRouter.get('/invitations/friend-request', authMiddleware, INVITATION_CONTROLLER.onGetFriendRequest);
 invitationRouter.get('/invitations/sent-invitation', authMiddleware, INVITATION_CONTROLLER.onGetSentInvitation);
 invitationRouter.get('/invitations/friend-request/count', authMiddleware, INVITATION_CONTROLLER.onGetCountFriendRequest);
+invitationRouter.get('/invitations/sent-invitation/count', authMiddleware, INVITATION_CONTROLLER.onGetCountSentInvitation);
 
 export default invitationRouter

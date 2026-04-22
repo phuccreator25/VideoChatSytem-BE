@@ -57,6 +57,17 @@ const onGetCountFriendRequest  = async(req, res, next) => {
     }
 }
 
+const onGetCountSentInvitation = async(req, res, next) => {
+    try {
+        const countData = await INVITATION_SERVICE.onGetCountSentInvitation(req.user.id);
+        res.status(200).json({
+            data: countData
+        })
+    } catch (error) {
+        next(error)
+    }
+}
+
 const onAccept = async(req, res, next) => {
     try {
         const data = await INVITATION_SERVICE.onAccept(req.body);
@@ -95,6 +106,7 @@ export const INVITATION_CONTROLLER = {
     onGetFriendRequest,
     onGetSentInvitation,
     onGetCountFriendRequest,
+    onGetCountSentInvitation,
     onAccept,
     onDecline,
     onCancelSent

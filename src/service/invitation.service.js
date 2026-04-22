@@ -20,6 +20,8 @@ const onAddContact = async (payload, _currentIdUser) => {
       },
       deleteAt: null,
     });
+  
+    const contact = await CONTACTS_REPOSITORY.findContactItem(_currentIdUser, payload.userId)
 
     if (existingInvitation) {
       if (existingInvitation.status === invitationStatus.PENDING) {
@@ -29,10 +31,10 @@ const onAddContact = async (payload, _currentIdUser) => {
 
         throw new Error("Người này đã gửi lời mời cho bạn rồi");
       }
+    }
 
-      if (existingInvitation.status === invitationStatus.ACCEPTED) {
-        throw new Error("Bạn và người này đã là bạn bè");
-      }
+    if (contact) {
+      throw new Error("Bạn và người này đã là bạn bè");
     }
 
     const dataCreated = {
@@ -87,6 +89,17 @@ const onGetCountFriendRequest = async (_currentIdUser) => {
   }
 };
 
+const onGetCountSentInvitation = async (_currentIdUser) => {
+  try {
+    const data = await INVITATION_REPOSITORY.countSent({
+      senderId: _currentIdUser,
+    });
+    return data;
+  } catch (error) {
+    throw error;
+  }
+};
+
 const onAccept = async (payload) => {
   try {
     const invitation = await INVITATION_REPOSITORY.findById(payload.id);
@@ -100,64 +113,30 @@ const onAccept = async (payload) => {
 
     if (!data) throw new Error("Please try again");
 
-    const receiverContactData = {
-      userId: data.senderId,
-      addedAt: new Date(),
-      nickname: null,
-    };
-
-    const senderContactData = {
-      userId: data.receiverId,
-      addedAt: new Date(),
-      nickname: null,
-    };
-
-    const receiverContactDoc = await CONTACTS_REPOSITORY.findByUserId(
+    const receiverHasSender = await CONTACTS_REPOSITORY.findContactItem(
       data.receiverId,
-    );
-
-    if (!receiverContactDoc) {
-      await CONTACTS_REPOSITORY.createOne({
-        userId: data.receiverId,
-        contactUserId: [receiverContactData],
-      });
-    } else {
-      const receiverHasSender = await CONTACTS_REPOSITORY.findContactItem(
-        data.receiverId,
-        data.senderId,
-      );
-
-      if (receiverHasSender)
-        throw new Error("This account is already your friend.");
-
-      await CONTACTS_REPOSITORY.pushContactUser(
-        data.receiverId,
-        receiverContactData,
-      );
-    }
-
-    const senderContactDoc = await CONTACTS_REPOSITORY.findByUserId(
       data.senderId,
     );
 
-    if (!senderContactDoc) {
+    if (!receiverHasSender) {
       await CONTACTS_REPOSITORY.createOne({
-        userId: data.senderId,
-        contactUserId: [senderContactData],
+        ownerId: data.receiverId,
+        contactUserId: data.senderId,
+        nickname: null,
       });
-    } else {
-      const senderHasReceiver = await CONTACTS_REPOSITORY.findContactItem(
-        data.senderId,
-        data.receiverId,
-      );
+    }
 
-      if (senderHasReceiver)
-        throw new Error("This account is already your friend.");
+    const senderHasReceiver = await CONTACTS_REPOSITORY.findContactItem(
+      data.senderId,
+      data.receiverId,
+    );
 
-      await CONTACTS_REPOSITORY.pushContactUser(
-        data.senderId,
-        senderContactData,
-      );
+    if (!senderHasReceiver) {
+      await CONTACTS_REPOSITORY.createOne({
+        ownerId: data.senderId,
+        contactUserId: data.receiverId,
+        nickname: null,
+      });
     }
 
     return data;
@@ -206,6 +185,7 @@ export const INVITATION_SERVICE = {
   onGetFriendRequest,
   onGetSentInvitation,
   onGetCountFriendRequest,
+  onGetCountSentInvitation,
   onDecline,
   onCancelSent,
 };

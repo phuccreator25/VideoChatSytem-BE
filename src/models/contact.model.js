@@ -1,29 +1,31 @@
 import Joi from "joi";
 
-const COLECTION_CONTACT_NAME = "contacts";
+const COLLECTION_CONTACT_NAME = "contacts";
 
-const contactItemSchema = Joi.object({
-  userId: Joi.string().required(),
+const COLLECTION_CONTACT_SCHEMA = Joi.object({
+  ownerId: Joi.string().required().trim(),
+  contactUserId: Joi.string().required().trim(),
+  nickname: Joi.string().allow(null, "").trim().default(null),
   addedAt: Joi.date().default(() => new Date()),
-  nickname: Joi.string().allow(null, "").default(null),
-});
-
-const COLECTION_CONTACT_SCHEMA = Joi.object({
-  userId: Joi.string().required(),
-  contactUserId: Joi.array().items(contactItemSchema).default([]),
   createdAt: Joi.date().default(() => new Date()),
   updatedAt: Joi.date().allow(null).default(null),
 });
 
 const validateData = async (data) => {
-  return await COLECTION_CONTACT_SCHEMA.validateAsync(data, {
+  const validated = await COLLECTION_CONTACT_SCHEMA.validateAsync(data, {
     abortEarly: false,
     stripUnknown: true,
   });
+
+  if (validated.ownerId === validated.contactUserId) {
+    throw new Error("A user cannot add themselves as a contact");
+  }
+
+  return validated;
 };
 
 export const CONTACT_MODEL = {
+  COLLECTION_CONTACT_NAME,
+  COLLECTION_CONTACT_SCHEMA,
   validateData,
-  COLECTION_CONTACT_NAME,
-  COLECTION_CONTACT_SCHEMA,
 };

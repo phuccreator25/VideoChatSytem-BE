@@ -1,59 +1,46 @@
+import { ObjectId } from "mongodb";
 import { GET_DB } from "../config/database.js";
 import { CONTACT_MODEL } from "../models/contact.model.js";
 import { USER_MODEL } from "../models/user.model.js";
+import { BLOCK_MODEL } from "../models/block.model.js";
 
 const createOne = async (payload) => {
   const dataValid = await CONTACT_MODEL.validateData(payload);
-  return GET_DB()
-    .collection(CONTACT_MODEL.COLECTION_CONTACT_NAME)
+
+  return await GET_DB()
+    .collection(CONTACT_MODEL.COLLECTION_CONTACT_NAME)
     .insertOne(dataValid);
 };
 
-const findByUserId = async (_id) => {
+const findByUserId = async (ownerId) => {
   return await GET_DB()
-    .collection(CONTACT_MODEL.COLECTION_CONTACT_NAME)
-    .findOne({
-      userId: _id,
-    });
+    .collection(CONTACT_MODEL.COLLECTION_CONTACT_NAME)
+    .find({ ownerId })
+    .toArray();
 };
 
-const findContactItem = async (ownerUserId, targetUserId) => {
+const findContactItem = async (ownerId, targetUserId) => {
   return await GET_DB()
-    .collection(CONTACT_MODEL.COLECTION_CONTACT_NAME)
-    .findOne(
-      {
-        userId: ownerUserId,
-        "contactUserId.userId": targetUserId,
-      },
-      {
-        projection: {
-          contactUserId: {
-            $elemMatch: { userId: targetUserId },
-          },
-        },
-      },
-    );
+    .collection(CONTACT_MODEL.COLLECTION_CONTACT_NAME)
+    .findOne({
+      ownerId,
+      contactUserId: targetUserId,
+    });
 };
 
 const findMany = async (currentUserId) => {
   const contacts = await GET_DB()
-    .collection(CONTACT_MODEL.COLECTION_CONTACT_NAME)
+    .collection(CONTACT_MODEL.COLLECTION_CONTACT_NAME)
     .aggregate([
       {
         $match: {
-          userId: currentUserId,
-        },
-      },
-      {
-        $unwind: {
-          path: "$contactUserId",
-          preserveNullAndEmptyArrays: false,
+          ownerId: currentUserId,
         },
       },
       {
         $lookup: {
           from: USER_MODEL.COLECTION_USER_NAME,
-          let: { friendUserId: "$contactUserId.userId" },
+          let: { friendUserId: "$contactUserId" },
           pipeline: [
             {
               $match: {
@@ -67,6 +54,7 @@ const findMany = async (currentUserId) => {
                 _id: 1,
                 fullname: 1,
                 avatar: 1,
+                email: 1,
               },
             },
           ],
@@ -80,12 +68,51 @@ const findMany = async (currentUserId) => {
         },
       },
       {
+        $lookup: {
+          from: BLOCK_MODEL.COLLECTION_BLOCK_NAME,
+          let: {
+            currentUserId: "$ownerId",
+            friendUserId: "$contactUserId",
+          },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $and: [
+                    { $eq: ["$blockerId", "$$currentUserId"] },
+                    { $eq: ["$blockedId", "$$friendUserId"] },
+                    { $eq: ["$status", BLOCK_MODEL.blockStatus.BLOCKED] },
+                  ],
+                },
+              },
+            },
+            { $limit: 1 },
+            {
+              $project: {
+                _id: 1,
+              },
+            },
+          ],
+          as: "blockInfo",
+        },
+      },
+      {
+        $addFields: {
+          isBlocked: {
+            $gt: [{ $size: "$blockInfo" }, 0],
+          },
+        },
+      },
+      {
         $project: {
           _id: 0,
-          userId: "$contactUserId.userId",
+          userId: "$contactUserId",
           fullname: "$friendInfo.fullname",
           avatar: "$friendInfo.avatar",
-          nickname: "$contactUserId.nickname",
+          nickname: 1,
+          email: "$friendInfo.email",
+          addedAt: 1,
+          isBlocked: 1,
         },
       },
     ])
@@ -107,20 +134,33 @@ const findMany = async (currentUserId) => {
   });
 };
 
-const pushContactUser = async (ownerUserId, contactData) => {
+const updateOne = async ({ filter, data }) => {
   return await GET_DB()
-    .collection(CONTACT_MODEL.COLECTION_CONTACT_NAME)
-    .updateOne(
-      { userId: ownerUserId },
+    .collection(CONTACT_MODEL.COLLECTION_CONTACT_NAME)
+    .findOneAndUpdate(
       {
-        $push: {
-          contactUserId: contactData,
-        },
+        ownerId: filter.ownerId,
+        contactUserId: filter.contactUserId,
+      },
+      {
         $set: {
+          nickname: data.nickname,
           updatedAt: new Date(),
         },
       },
+      {
+        returnDocument: "after",
+      }
     );
+};
+
+const deleteOne = async ({ ownerId, contactUserId }) => {
+  return await GET_DB()
+    .collection(CONTACT_MODEL.COLLECTION_CONTACT_NAME)
+    .deleteOne({
+      ownerId,
+      contactUserId,
+    });
 };
 
 export const CONTACTS_REPOSITORY = {
@@ -128,5 +168,6 @@ export const CONTACTS_REPOSITORY = {
   findByUserId,
   findContactItem,
   findMany,
-  pushContactUser,
+  updateOne,
+  deleteOne,
 };

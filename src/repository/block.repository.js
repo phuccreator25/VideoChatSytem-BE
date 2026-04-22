@@ -1,0 +1,39 @@
+import { GET_DB } from "../config/database.js";
+import { BLOCK_MODEL } from "../models/block.model.js"
+
+const createOne = async(data) => {
+    const validData = await BLOCK_MODEL.validateData(data);
+    return GET_DB().collection(BLOCK_MODEL.COLLECTION_BLOCK_NAME).insertOne(validData)
+}
+
+const findByBlock = async(blockerId, blockedId) => {
+    return await GET_DB().collection(BLOCK_MODEL.COLLECTION_BLOCK_NAME)
+                        .findOne({
+                            blockerId,
+                            blockedId
+                        });
+}
+
+const updateOne = async ({ filter, data }) => {
+  return await GET_DB()
+    .collection(BLOCK_MODEL.COLLECTION_BLOCK_NAME)
+    .findOneAndUpdate(
+      {
+        blockerId: filter.blockerId,
+        blockedId: filter.blockedId,
+      },
+      {
+        $set: {
+          ...data,
+          updatedAt: new Date(),
+        },
+      },
+      {
+        returnDocument: "after",
+      }
+    );
+};
+
+export const BLOCK_REPOSITORY = {
+    createOne, findByBlock, updateOne
+}

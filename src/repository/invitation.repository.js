@@ -90,6 +90,20 @@ const countReceived = async (filters = {}) => {
     .countDocuments(match);
 };
 
+const countSent = async (filters = {}) => {
+  const match = {
+    deleteAt: null,
+    status: "pending"
+  };
+
+  if (filters.senderId) match.senderId = filters.senderId;
+  if (filters.status) match.status = filters.status;
+
+  return await GET_DB()
+    .collection(INVITATION_MODEL.COLECTION_INVITATION_NAME)
+    .countDocuments(match);
+};
+
 const updateById = async (_id, _status) => {
   const fieldUpdate = _status === "accepted" ? "responseAt" : "deleteAt";
 
@@ -122,5 +136,5 @@ const findByFilter = async(filters) => {
 
 
 export const INVITATION_REPOSITORY = {
-    createOne, findMany, countReceived, updateById, findById, findByFilter
+    createOne, findMany, countReceived, countSent, updateById, findById, findByFilter
 }

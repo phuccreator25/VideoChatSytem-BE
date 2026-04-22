@@ -7,6 +7,7 @@ import cookieParser from 'cookie-parser';
 import { arjectProtection } from './src/middleware/arject.middleware.js';
 import invitationRouter from './src/routes/invitation.route.js';
 import contactRouter from './src/routes/contacts.route.js';
+import blockRouter from './src/routes/block.route.js';
 dotenv.config();
 
 const SERVER = async() => {
@@ -28,6 +29,7 @@ const SERVER = async() => {
     app.use('/api', userRouter);
     app.use('/api', invitationRouter);
     app.use('/api', contactRouter);
+    app.use('/api', blockRouter);
 
     app.use((err, req, res, next) => { // Error middleware này run global, tất cả router có next Error đều xuống đây
         const statusCode = err.statusCode || 500
