@@ -81,6 +81,13 @@ const onLogin = async (payload) => {
       ...user,
     };
 
+    await USER_REPOSITORY.updateById({
+      _id: user._id,
+      data: {
+        status: "online",
+      },
+    })
+
     return await handleDeviceSession(data);
   } catch (error) {
     console.error("LOGIN ERROR:", error);
@@ -104,6 +111,15 @@ const onLogOut = async (payload) => {
     if (dataLogOut.matchedCount === 0) {
       throw new Error("Phiên đăng nhập của bạn không tồn tại");
     }
+
+    // Update user's online status
+    await USER_REPOSITORY.updateById({
+      _id: dataToken.id,
+      data: {
+        status: "offline",
+        lastSeenAt: new Date(),
+      },
+    });
 
     return dataLogOut;
   } catch (error) {

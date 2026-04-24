@@ -1,49 +1,50 @@
-import express from 'express';
-import { connectDB} from './src/config/database.js'
-import cors from 'cors';
+import { connectDB } from './src/config/database.js'
+import cors from 'cors'
 import dotenv from 'dotenv'
-import userRouter from './src/routes/user.route.js';
-import cookieParser from 'cookie-parser';
-import { arjectProtection } from './src/middleware/arject.middleware.js';
-import invitationRouter from './src/routes/invitation.route.js';
-import contactRouter from './src/routes/contacts.route.js';
-import blockRouter from './src/routes/block.route.js';
-dotenv.config();
+import cookieParser from 'cookie-parser'
 
-const SERVER = async() => {
-    await connectDB();
+import userRouter from './src/routes/user.route.js'
+import invitationRouter from './src/routes/invitation.route.js'
+import contactRouter from './src/routes/contacts.route.js'
+import blockRouter from './src/routes/block.route.js'
 
-    const app = express();
+import { arjectProtection } from './src/middleware/arject.middleware.js'
+import { app, server } from './src/sockets/socket.js'
 
-    app.use(cors({
-        origin: 'http://localhost:5173',
-        methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-        allowedHeaders: ['Content-Type', 'Authorization'],
-        credentials: true
-    }))
+dotenv.config()
 
-    app.use(express.json());
+const SERVER = async () => {
+  await connectDB()
 
-    app.use(cookieParser());
-    app.use(arjectProtection); // Rate Limit và Prevent Bots
-    app.use('/api', userRouter);
-    app.use('/api', invitationRouter);
-    app.use('/api', contactRouter);
-    app.use('/api', blockRouter);
+  app.use(cors({
+    origin: 'http://localhost:5173',
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    credentials: true
+  }))
 
-    app.use((err, req, res, next) => { // Error middleware này run global, tất cả router có next Error đều xuống đây
-        const statusCode = err.statusCode || 500
+//   app.use(express.json())
+  app.use(cookieParser())
+  app.use(arjectProtection)
 
-        return res.status(statusCode).json({
-            message: err.message || 'Đã xảy ra lỗi vui lòng thử lại'
-        })
+  app.use('/api', userRouter)
+  app.use('/api', invitationRouter)
+  app.use('/api', contactRouter)
+  app.use('/api', blockRouter)
+
+  app.use((err, req, res, next) => {
+    const statusCode = err.statusCode || 500
+
+    return res.status(statusCode).json({
+      message: err.message || 'Đã xảy ra lỗi vui lòng thử lại'
     })
+  })
 
-    const Port = Number(process.env.PORT) || 3000;
-     
-    app.listen(Port, () => {
-      console.log('Server is running on port 3000');
-    });
+  const Port = Number(process.env.PORT) || 3000
+
+  server.listen(Port, () => {
+    console.log(`Server is running on port ${Port}`)
+  })
 }
 
-SERVER();
+SERVER()

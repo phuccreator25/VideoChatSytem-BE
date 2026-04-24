@@ -21,6 +21,7 @@ const COLECTION_USER_SCHEMA = Joi.object({
   bannedAt: Joi.date().allow(null).default(null),
 
   isActive: Joi.boolean().default(false),
+  isOnline: Joi.boolean().default(false),
   lastSeenAt: Joi.date().allow(null).default(null),
 
   avatar: Joi.string().trim().allow('').default(''),
