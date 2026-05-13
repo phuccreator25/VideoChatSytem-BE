@@ -3,13 +3,14 @@ import { GET_DB } from "../config/database.js";
 import { CONTACT_MODEL } from "../models/contact.model.js";
 import { USER_MODEL } from "../models/user.model.js";
 import { BLOCK_MODEL } from "../models/block.model.js";
+import { DEVICE_SESSION_MODEL } from "../models/deviceSession.model.js";
 
-const createOne = async (payload) => {
+const createOne = async (payload, session = null) => {
   const dataValid = await CONTACT_MODEL.validateData(payload);
 
   return await GET_DB()
     .collection(CONTACT_MODEL.COLLECTION_CONTACT_NAME)
-    .insertOne(dataValid);
+    .insertOne(dataValid, {session});
 };
 
 const findByUserId = async (ownerId) => {
@@ -19,13 +20,65 @@ const findByUserId = async (ownerId) => {
     .toArray();
 };
 
-const findContactItem = async (ownerId, targetUserId) => {
+const findContactItem = async (ownerId, targetUserId, session = null) => {
   return await GET_DB()
     .collection(CONTACT_MODEL.COLLECTION_CONTACT_NAME)
     .findOne({
       ownerId,
       contactUserId: targetUserId,
-    });
+    }, {session});
+};
+
+const findUserOnline = async (filter) => {
+  const result = await GET_DB()
+    .collection(CONTACT_MODEL.COLLECTION_CONTACT_NAME)
+    .aggregate([
+      {
+        $match: {
+          ownerId: filter.userId, 
+        },
+      },
+      {
+        $lookup: {
+          from: USER_MODEL.COLECTION_USER_NAME,
+          let: { contactUserId: "$contactUserId" },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $and: [
+                    { $eq: [{ $toString: "$_id" }, "$$contactUserId"] },
+                    { $eq: ["$status", "online"] },
+                  ],
+                },
+              },
+            },
+            { $limit: 1 },
+          ],
+          as: "userOnlineInfo",
+        },
+      },
+      {
+        $match: {
+          "userOnlineInfo.0": { $exists: true },
+        },
+      },
+      {
+        $group: {
+          _id: null,
+          userIds: { $addToSet: "$contactUserId" },
+        },
+      },
+      {
+        $project: {
+          _id: 0,
+          userIds: 1,
+        },
+      },
+    ])
+    .toArray();
+
+  return result[0]?.userIds || [];
 };
 
 const findMany = async (currentUserId) => {
@@ -154,13 +207,13 @@ const updateOne = async ({ filter, data }) => {
     );
 };
 
-const deleteOne = async ({ ownerId, contactUserId }) => {
+const deleteOne = async ({ ownerId, contactUserId }, session = null) => {
   return await GET_DB()
     .collection(CONTACT_MODEL.COLLECTION_CONTACT_NAME)
     .deleteOne({
       ownerId,
       contactUserId,
-    });
+    }, session);
 };
 
 export const CONTACTS_REPOSITORY = {
@@ -170,4 +223,5 @@ export const CONTACTS_REPOSITORY = {
   findMany,
   updateOne,
   deleteOne,
+  findUserOnline
 };

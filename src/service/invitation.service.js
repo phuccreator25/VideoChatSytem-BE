@@ -1,6 +1,15 @@
+import { client } from "../config/database.js";
 import { invitationStatus } from "../data/invitation.data.js";
 import { CONTACTS_REPOSITORY } from "../repository/contacts.repository.js";
 import { INVITATION_REPOSITORY } from "../repository/invitation.repository.js";
+import { USER_REPOSITORY } from "../repository/user.repository.js";
+import { emitPresenceChanged } from "../sockets/emitters/auth.emitter.js";
+import {
+  emitInvitationAccept,
+  emitInvitationCancel,
+  emitInvitationReceived,
+  emitInvitationDecline,
+} from "../sockets/emitters/invitaion.emitter.js";
 
 const onAddContact = async (payload, _currentIdUser) => {
   try {
@@ -20,8 +29,11 @@ const onAddContact = async (payload, _currentIdUser) => {
       },
       deleteAt: null,
     });
-  
-    const contact = await CONTACTS_REPOSITORY.findContactItem(_currentIdUser, payload.userId)
+
+    const contact = await CONTACTS_REPOSITORY.findContactItem(
+      _currentIdUser,
+      payload.userId,
+    );
 
     if (existingInvitation) {
       if (existingInvitation.status === invitationStatus.PENDING) {
@@ -45,6 +57,14 @@ const onAddContact = async (payload, _currentIdUser) => {
     };
 
     const result = await INVITATION_REPOSITORY.createOne(dataCreated);
+
+    emitInvitationReceived(payload.userId, {
+      invitationId: result.insertedId?.toString?.() || null,
+      senderId: _currentIdUser,
+      receiverId: payload.userId,
+      message: payload.invitationMessage,
+      status: invitationStatus.PENDING,
+    });
 
     return result;
   } catch (error) {
@@ -100,15 +120,26 @@ const onGetCountSentInvitation = async (_currentIdUser) => {
   }
 };
 
-const onAccept = async (payload) => {
-  try {
-    const invitation = await INVITATION_REPOSITORY.findById(payload.id);
+const onAccept = async (payload, curretnUserId) => {
+  const invitation = await INVITATION_REPOSITORY.findById(payload.id);
 
-    if (!invitation) throw new Error("Invitation Not Found");
+  if (!invitation) throw new Error("Invitation Not Found");
+
+  if (invitation.receiverId !== curretnUserId)
+    throw new Error("You have no right to accept.");
+
+  if(invitation.status !== 'pending' || invitation.deleteAt !== null) 
+    throw new Error('This invitation is invalid.')
+
+  const session = client.startSession();
+
+  try {
+    await session.startTransaction();
 
     const data = await INVITATION_REPOSITORY.updateById(
       payload.id,
       invitationStatus.ACCEPTED,
+      session
     );
 
     if (!data) throw new Error("Please try again");
@@ -123,7 +154,7 @@ const onAccept = async (payload) => {
         ownerId: data.receiverId,
         contactUserId: data.senderId,
         nickname: null,
-      });
+      }, session);
     }
 
     const senderHasReceiver = await CONTACTS_REPOSITORY.findContactItem(
@@ -136,42 +167,82 @@ const onAccept = async (payload) => {
         ownerId: data.senderId,
         contactUserId: data.receiverId,
         nickname: null,
-      });
+      }, session);
     }
+
+    const receiverStatus = await USER_REPOSITORY.findById(data.receiverId);
+    const senderStatus = await USER_REPOSITORY.findById(data.senderId);
+
+    await session.commitTransaction();
+
+    emitInvitationAccept(data.senderId.toString(), {
+      invitationId: data._id.toString(),
+      status: invitationStatus.ACCEPTED,
+    });
+
+    emitPresenceChanged(data.receiverId, {
+      userId: data.receiverId,
+      isOnline: receiverStatus.status === 'online' ? true : false,
+      lastSeenAt: receiverStatus.status === 'online' ? null : new Date(),
+    })
+
+    emitPresenceChanged(data.senderId, {
+      userId: data.senderId,
+      isOnline: senderStatus.status === 'online' ? true : false,
+      lastSeenAt: senderStatus.status === 'online' ? null : new Date(),
+    })
 
     return data;
   } catch (error) {
     throw error;
+  } finally {
+    session.endSession();
   }
 };
 
-const onDecline = async (payload) => {
+const onDecline = async (payload, currentUserId) => {
   try {
     const invitation = await INVITATION_REPOSITORY.findById(payload.id);
 
     if (!invitation) throw new Error("Invitation Not Found");
+
+    if (invitation.receiverId !== currentUserId)
+      throw new Error("You have no right to decline.");
 
     const data = await INVITATION_REPOSITORY.updateById(
       payload.id,
       invitationStatus.REJECTED,
     );
 
+    emitInvitationDecline(invitation.senderId, {
+      invitationId: invitation._id.toString(),
+      status: invitationStatus.REJECTED,
+    });
+
     return data;
   } catch (error) {
     throw error;
   }
 };
 
-const onCancelSent = async (payload) => {
+const onCancelSent = async (payload, currentUserId) => {
   try {
     const invitation = await INVITATION_REPOSITORY.findById(payload.id);
 
     if (!invitation) throw new Error("Invitation Not Found");
 
+    if (invitation.senderId !== currentUserId)
+      throw new Error("You have no right to cancel.");
+
     const data = await INVITATION_REPOSITORY.updateById(
       payload.id,
       invitationStatus.CANCELED,
     );
+
+    emitInvitationCancel(invitation.receiverId, {
+      invitationId: invitation._id.toString() || null,
+      status: invitationStatus.CANCELED,
+    });
 
     return data;
   } catch (error) {

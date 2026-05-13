@@ -16,7 +16,7 @@ const onRegister = async (req, res, next) => {
 
 const onActivateAccount = async (req, res, next) => {
   try {
-    const dataActivated = await USER_SERVICE.onActiveAccount(req.body.email);
+    const dataActivated = await USER_SERVICE.onActiveAccount(req.body.token);
     return res.status(200).json({
       data: dataActivated,
     });
@@ -112,18 +112,23 @@ const onForgotPassword = async (req, res, next) => {
 const onResetPassword = async (req, res, next) => {
   try {
 
-    if (!req.params.email || !req.body.password) {
+    if (!req.params.token || !req.body.password) {
       throw new Error("Dữ liệu không hợp lệ");
     }
 
     const data = {
-      email: req.params.email,
+      token: req.params.token,
       password: req.body.password,
     };
 
-    await USER_SERVICE.onResetPassword(data);
+    const result = await USER_SERVICE.onResetPassword(data);
+    console.log(result);
+    
     return res.status(200).json({
       message: "Đổi mật khẩu thành công",
+      data: {
+        email: result.email
+      }
     });
   } catch (error) {
     next(error);

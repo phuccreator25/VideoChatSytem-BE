@@ -104,7 +104,7 @@ const countSent = async (filters = {}) => {
     .countDocuments(match);
 };
 
-const updateById = async (_id, _status) => {
+const updateById = async (_id, _status, session = null) => {
   const fieldUpdate = _status === "accepted" ? "responseAt" : "deleteAt";
 
   return await GET_DB()
@@ -118,7 +118,7 @@ const updateById = async (_id, _status) => {
           updatedAt: new Date()
         }
       },
-      { returnDocument: "after" }
+      { returnDocument: "after", session }
     );
 };
 

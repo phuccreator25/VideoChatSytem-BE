@@ -25,6 +25,13 @@ const updateOne = async(filters, updatedData) => {
                         )             
 }
 
+const findMany = async (filters = {}) => {
+  return await GET_DB()
+    .collection(DEVICE_SESSION_MODEL.COLECTION_DEVICE_SESSION_NAME)
+    .find(filters)
+    .toArray();
+};
+
 export const DEVICE_SESSION_REPOSITORY = {
-    findOne, createOne, updateOne
+    findOne, createOne, updateOne, findMany
 }

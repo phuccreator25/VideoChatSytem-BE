@@ -1,9 +1,10 @@
 import { MongoClient } from "mongodb";
 import dotenv from 'dotenv';
+import env from "./env.js";
+import dns from "node:dns/promises";
+dns.setServers(["1.1.1.1"]);
 
-dotenv.config();
-
-const url = process.env.MONGODB_URI || 'mongodb://localhost:27017/ChatApp';
+const url = env.MONGODB_URI
 
 const client = new MongoClient(url);
 let db;
@@ -11,7 +12,7 @@ let db;
 export const connectDB = async () => {
   try {
     await client.connect()
-    db = client.db()
+    db = client.db(env.DATABASE_NAME)
     console.log('Connect Database Success')
   } catch (error) {
     console.error('Connect Database Fail:', error)

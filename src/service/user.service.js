@@ -5,36 +5,78 @@ import { DEVICE_SESSION_REPOSITORY } from "../repository/deviceSession.repositor
 import { USER_REPOSITORY } from "../repository/user.repository.js";
 import bcrypt from "bcrypt";
 import { randomBytes, randomUUID } from "crypto";
-import jwt, { decode } from "jsonwebtoken";
+import jwt from "jsonwebtoken";
 import env from "../config/env.js";
 import cloudinary from "../config/cloudinary.js";
 import { uploadBufferToCloudinary } from "../helper/uploadBuffer.js";
+import { disconnectUserSession } from "../sockets/socketStore.js";
 
 const onRegister = async (payload) => {
   try {
     const existingUser = await USER_REPOSITORY.findByEmail(payload.email);
 
-    if (existingUser) {
-      throw new Error("Email này đã được đăng ký tài khoản");
-    }
-
     const saltRounds = 10;
     const hashedPassword = await bcrypt.hash(payload.password, saltRounds);
+
+    const expiredVerifyTokenAt = new Date(Date.now() + 15 * 60 * 1000);
+
+    const verifyToken = jwt.sign(
+      {
+        email: payload.email,
+        type: "active_account",
+      },
+      env.JWT_SECRET,
+      { expiresIn: "15m" }
+    );
+
+    const activationLink = `${env.HOST_NAME}/active-account?token=${verifyToken}`;
+
+    if (existingUser) { // Xử lý nếu user đã đăng nhập từ trước nhưng chưa active
+      if (existingUser.isActive) {
+        throw new Error("Email này đã được đăng ký tài khoản");
+      }
+
+      await USER_REPOSITORY.updateById({
+        _id: existingUser._id,
+        data: {
+          fullname: payload.fullname,
+          password: hashedPassword,
+          verifyToken,
+          expiredVerifyTokenAt,
+          updatedAt: new Date(),
+        },
+      });
+
+      await sendMail({
+        to: existingUser.email,
+        title: "Kích hoạt tài khoản",
+        view: "src/views/Mail/Register.viewMail.ejs",
+        data: { link: activationLink },
+      });
+
+      return {
+        ...existingUser,
+        verifyToken,
+        expiredVerifyTokenAt,
+      };
+    }
 
     const userData = {
       ...payload,
       password: hashedPassword,
+      verifyToken,
+      expiredVerifyTokenAt,
+      isActive: false,
     };
 
     const dataCreated = await USER_REPOSITORY.createOne(userData);
-
     const data = await USER_REPOSITORY.findById(dataCreated.insertedId);
 
     await sendMail({
       to: data.email,
       title: "Kích hoạt tài khoản",
       view: "src/views/Mail/Register.viewMail.ejs",
-      data: { link: payload.link },
+      data: { link: activationLink },
     });
 
     return data;
@@ -69,6 +111,8 @@ const onLogin = async (payload) => {
 
     if(!user.isActive) throw new Error("Tài khoản chưa được kích hoạt");
 
+    if(user.isBanned) throw new Error("Tài khoản này đã bị khóa")
+
     const isPasswordValid = await bcrypt.compare(
       payload.password,
       user.password,
@@ -98,28 +142,39 @@ const onLogin = async (payload) => {
 const onLogOut = async (payload) => {
   try {
     const token = payload;
-    const dataToken = jwt.decode(token);
+    const dataToken = jwt.verify(token, env.JWT_SECRET);
 
-    const dataLogOut = DEVICE_SESSION_REPOSITORY.updateOne(
+    const dataLogOut = await DEVICE_SESSION_REPOSITORY.updateOne(
       { sessionId: dataToken.sessionId },
       {
         revokedAt: new Date(),
-        updateAt: new Date(),
+        updatedAt: new Date(),
       },
     );
 
-    if (dataLogOut.matchedCount === 0) {
+    if (!dataLogOut) {
       throw new Error("Phiên đăng nhập của bạn không tồn tại");
     }
 
-    // Update user's online status
-    await USER_REPOSITORY.updateById({
-      _id: dataToken.id,
-      data: {
-        status: "offline",
-        lastSeenAt: new Date(),
-      },
+    const activeSessions = await DEVICE_SESSION_REPOSITORY.findMany({
+      userId: dataToken.id,
+      revokedAt: null,
+      expiredAt: { $gt: new Date() },
     });
+
+    // Update user's online status
+    if (!activeSessions || activeSessions.length === 0) {
+      await USER_REPOSITORY.updateById({
+        _id: dataToken.id,
+        data: {
+          status: "offline",
+          lastSeenAt: new Date(),
+        },
+      });
+    }
+
+    //disconnect toàn bộ socket thuộc session
+    await disconnectUserSession(dataToken.id, dataToken.sessionId)
 
     return dataLogOut;
   } catch (error) {
@@ -132,14 +187,36 @@ const onForgotPassword = async (payload) => {
   try {
     const result = await USER_REPOSITORY.findByEmail(payload.email);
 
-    if (!result) throw new Error("Tài khoản của bạn không tồn tại");
+    if (!result) {
+      throw new Error("Tài khoản của bạn không tồn tại");
+    }
 
-    const link = `${process.env.HOST_NAME}/reset-password/${payload.email}`;
+    const expiredVerifyTokenAt = new Date(Date.now() + 15 * 60 * 1000);
+
+    const verifyToken = jwt.sign(
+      {
+        id: result._id,
+        email: result.email,
+        type: "reset_password",
+      },
+      env.JWT_SECRET,
+      { expiresIn: "15m" }
+    );
+
+    const link = `${process.env.HOST_NAME}/reset-password?token=${verifyToken}`;
 
     const dataEmail = {
       ...result,
       link,
     };
+
+    await USER_REPOSITORY.updateById({
+      _id: result._id,
+      data: {
+        verifyToken,
+        expiredVerifyTokenAt,
+      },
+    });
 
     await sendMail({
       to: payload.email,
@@ -147,6 +224,8 @@ const onForgotPassword = async (payload) => {
       view: "src/views/Mail/RessetPassword.ejs",
       data: { dataEmail },
     });
+
+    return true;
   } catch (error) {
     console.error("FORGOT: ", error);
     throw error;
@@ -155,19 +234,24 @@ const onForgotPassword = async (payload) => {
 
 const onResetPassword = async (payload) => {
   try {
-    const isAccount = await USER_REPOSITORY.findByEmail(payload.email);
+    const isAccount = await USER_REPOSITORY.findByToken(payload.token);
 
     if (!isAccount) throw new Error("Tài khoản của bạn không tồn tại");
+
+    if(isAccount.expiredVerifyTokenAt < new Date())
+      throw new Error('The password change deadline has passed.')
 
     const saltRounds = 10;
     const hashedPassword = await bcrypt.hash(payload.password, saltRounds);
 
     const dataUpdate = {
-      email: payload.email,
+      email: isAccount.email,
       password: hashedPassword,
     };
 
-    await USER_REPOSITORY.updateOne(dataUpdate);
+    const data = await USER_REPOSITORY.updateOne(dataUpdate);
+    
+    return data
   } catch (error) {
     console.log("RESET ", error);
     throw error;

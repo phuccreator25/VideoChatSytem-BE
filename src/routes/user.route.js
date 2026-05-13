@@ -11,7 +11,7 @@ userRouter.post('/auth/login', USER_CONTROLLER.onLogin)
 userRouter.post('/auth/refresh-token', USER_CONTROLLER.onRefreshToken)
 userRouter.post('/auth/logout', USER_CONTROLLER.onLogOut)
 userRouter.post('/auth/forgot-password', USER_CONTROLLER.onForgotPassword)
-userRouter.post('/auth/reset-password/:email', USER_CONTROLLER.onResetPassword)
+userRouter.post('/auth/reset-password/:token', USER_CONTROLLER.onResetPassword)
 
 userRouter.get('/users', authMiddleware, USER_CONTROLLER.onGetUsers)
 userRouter.put('/users', authMiddleware, USER_CONTROLLER.onUpdate)

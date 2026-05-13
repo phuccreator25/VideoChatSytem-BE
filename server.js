@@ -7,6 +7,7 @@ import userRouter from './src/routes/user.route.js'
 import invitationRouter from './src/routes/invitation.route.js'
 import contactRouter from './src/routes/contacts.route.js'
 import blockRouter from './src/routes/block.route.js'
+import conversationRouter from './src/routes/conversation.route.js'
 
 import { arjectProtection } from './src/middleware/arject.middleware.js'
 import { app, server } from './src/sockets/socket.js'
@@ -31,6 +32,7 @@ const SERVER = async () => {
   app.use('/api', invitationRouter)
   app.use('/api', contactRouter)
   app.use('/api', blockRouter)
+  app.use('/api', conversationRouter)
 
   app.use((err, req, res, next) => {
     const statusCode = err.statusCode || 500

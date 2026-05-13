@@ -3,10 +3,12 @@ import { USER_REPOSITORY } from "../repository/user.repository.js";
 
 const onBlock = async({currentUserId, UserBlockedId}) => {
     if(!currentUserId || !UserBlockedId) return;
-
-    const user = USER_REPOSITORY.findById(UserBlockedId)
+    
+    const user = await USER_REPOSITORY.findById(UserBlockedId)
 
     if(!user) throw new Error ('User Not Found')
+
+    if(currentUserId === UserBlockedId) throw new Error("You can't block yourself.")
 
     const blockItem = await BLOCK_REPOSITORY.findByBlock(currentUserId,UserBlockedId)
 
@@ -34,9 +36,11 @@ const onBlock = async({currentUserId, UserBlockedId}) => {
 const onUnblock = async({currentUserId, UserBlockedId}) => {
     if(!currentUserId || !UserBlockedId) return;
 
-    const user = USER_REPOSITORY.findById(UserBlockedId)
+    const user = await USER_REPOSITORY.findById(UserBlockedId)
 
     if(!user) throw new Error ('User Not Found')
+
+    if(currentUserId === UserBlockedId) throw new Error("You can't unblock yourself.")
 
     const blockItem = await BLOCK_REPOSITORY.findByBlock(currentUserId,UserBlockedId)
 

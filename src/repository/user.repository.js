@@ -12,18 +12,26 @@ const createOne = async (data) => {
     .insertOne(dataValidate);
 };
 
-const activeAcount = async (email) => {
+const activeAcount = async (token) => {
   const result = await GET_DB()
     .collection(USER_MODEL.COLECTION_USER_NAME)
     .findOneAndUpdate(
-      { email, isActive: false },
+      {
+        verifyToken: token,
+        isActive: false,
+        expiredVerifyTokenAt: { $gt: new Date() },
+      },
       {
         $set: {
           isActive: true,
           updatedAt: new Date(),
         },
+        $unset: {
+          verifyToken: null,
+          expiredVerifyTokenAt: null,
+        },
       },
-      { returnDocument: "after" },
+      { returnDocument: "after" }
     );
 
   return result;
@@ -40,6 +48,13 @@ const findByEmail = async (data) => {
   const user = GET_DB()
     .collection(USER_MODEL.COLECTION_USER_NAME)
     .findOne({ email: data });
+  return user;
+};
+
+const findByToken = async (data) => {
+  const user = GET_DB()
+    .collection(USER_MODEL.COLECTION_USER_NAME)
+    .findOne({ verifyToken: data });
   return user;
 };
 
@@ -194,15 +209,20 @@ const findByUser = async ({ keyword, currentUserId }) => {
 };
 
 const updateOne = async (data) => {
-  return GET_DB()
+  return await GET_DB()
     .collection(USER_MODEL.COLECTION_USER_NAME)
-    .updateOne(
+    .findOneAndUpdate(
       { email: data.email },
       {
         $set: {
           password: data.password,
+          verifyToken: null,
+          expiredVerifyTokenAt: null
         },
       },
+      {
+        returnDocument: "after",
+      }
     );
 };
 
@@ -226,4 +246,5 @@ export const USER_REPOSITORY = {
   updateOne,
   updateById,
   findByUser,
+  findByToken
 };

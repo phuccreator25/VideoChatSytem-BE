@@ -70,7 +70,7 @@ const onGetCountSentInvitation = async(req, res, next) => {
 
 const onAccept = async(req, res, next) => {
     try {
-        const data = await INVITATION_SERVICE.onAccept(req.body);
+        const data = await INVITATION_SERVICE.onAccept(req.body, req.user.id);
         res.status(200).json({
             data: data
         })
@@ -81,7 +81,7 @@ const onAccept = async(req, res, next) => {
 
 const onDecline = async(req, res, next) => {
     try {
-        const data = await INVITATION_SERVICE.onDecline(req.body);
+        const data = await INVITATION_SERVICE.onDecline(req.body, req.user.id);
         res.status(200).json({
             data: data
         })
@@ -92,7 +92,7 @@ const onDecline = async(req, res, next) => {
 
 const onCancelSent = async(req, res, next) => {
     try {
-        const data = await INVITATION_SERVICE.onCancelSent(req.body);
+        const data = await INVITATION_SERVICE.onCancelSent(req.body, req.user.id);
         res.status(200).json({
             data: data
         })

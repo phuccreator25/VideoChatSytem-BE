@@ -1,5 +1,8 @@
 import { client, GET_DB } from "../config/database.js";
 import { CONTACTS_REPOSITORY } from "../repository/contacts.repository.js";
+import { USER_REPOSITORY } from "../repository/user.repository.js";
+import { emitPresenceChanged } from "../sockets/emitters/auth.emitter.js";
+import { emitContactRemove } from "../sockets/emitters/contact.emitter.js";
 
 const onGetData = async (currentUserId) => {
   const contacts = await CONTACTS_REPOSITORY.findMany(currentUserId);
@@ -16,7 +19,7 @@ const onUpdateContact = async ({ currentUserId, payload }) => {
 
     const contact = await CONTACTS_REPOSITORY.findContactItem(
       currentUserId,
-      userId
+      userId,
     );
 
     if (!contact) {
@@ -24,9 +27,7 @@ const onUpdateContact = async ({ currentUserId, payload }) => {
     }
 
     const FinallyNickName =
-      typeof nickname === "string" && nickname.trim() === ""
-        ? null
-        : nickname;
+      typeof nickname === "string" && nickname.trim() === "" ? null : nickname;
 
     const contactUpdated = await CONTACTS_REPOSITORY.updateOne({
       filter: {
@@ -44,45 +45,70 @@ const onUpdateContact = async ({ currentUserId, payload }) => {
   }
 };
 
-const onRemoveContact = async ({ownerId, friendId}) => {
-  const session = client.startSession()
-  
+const onRemoveContact = async ({ ownerId, friendId }) => {
+  const session = client.startSession();
+
   try {
-    if(!ownerId || !friendId) return
+    if (!ownerId || !friendId) return;
 
     const contactOwner = await CONTACTS_REPOSITORY.findContactItem(
       ownerId,
-      friendId
-    )
+      friendId,
+    );
 
     const contactFriend = await CONTACTS_REPOSITORY.findContactItem(
       friendId,
-      ownerId
-    )
-
-    if(!contactFriend || !contactOwner) throw new Error ('Contact Not Found')
-    
-    session.startTransaction()
-    await CONTACTS_REPOSITORY.deleteOne({
       ownerId,
-      contactUserId: friendId
-    })
+    );
 
-    await CONTACTS_REPOSITORY.deleteOne({
-      ownerId: friendId,
-      contactUserId: ownerId
-    })
-    session.commitTransaction()
+    if (!contactFriend || !contactOwner) throw new Error("Contact Not Found");
 
-    return true
-    
+    session.startTransaction();
+    await CONTACTS_REPOSITORY.deleteOne(
+      {
+        ownerId,
+        contactUserId: friendId,
+      },
+      session,
+    );
+
+    await CONTACTS_REPOSITORY.deleteOne(
+      {
+        ownerId: friendId,
+        contactUserId: ownerId,
+      },
+      session,
+    );
+
+    const friendStatus = await USER_REPOSITORY.findById(friendId);
+    const ownerStatus = await USER_REPOSITORY.findById(ownerId);
+
+    await session.commitTransaction();
+
+    emitContactRemove(friendId, {});
+
+    emitPresenceChanged(friendId, {
+      userId: friendId,
+      isOnline: friendStatus === "online" ? true : false,
+      lastSeenAt: friendStatus === "online" ? null : new Date(),
+    });
+
+    emitPresenceChanged(ownerId, {
+      userId: ownerId,
+      isOnline: ownerStatus === "online" ? true : false,
+      lastSeenAt: ownerStatus === "online" ? null : new Date(),
+    });
+
+    return true;
   } catch (error) {
-    throw error
+    throw error;
+  } finally {
+    session.endSession();
   }
-}
+};
 
 export const CONTACT_SERVICE = {
   onGetData,
   onUpdateContact,
-  onRemoveContact
+  onRemoveContact,
 };

@@ -7,6 +7,7 @@ const env = {
   HOST_NAME: process.env.HOST_NAME,
 
   MONGODB_URI: process.env.MONGODB_URI,
+  DATABASE_NAME: process.env.DATABASE_NAME,
 
   MAIL_MAILER: process.env.MAIL_MAILER,
   MAIL_HOST: process.env.MAIL_HOST,
