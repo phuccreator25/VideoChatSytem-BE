@@ -16,4 +16,7 @@ export const emitInvitationDecline = (receiverId, payload) => {
   emitToUser(receiverId, "invitation:declined", payload);
 };
 
+export const emitInvitationSent = (receiverId, payload) => {
+  emitToUser(receiverId, "invitation:sent", payload);
+};
 

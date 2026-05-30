@@ -30,7 +30,7 @@ const COLECTION_USER_SCHEMA = Joi.object({
     .valid(...Object.values(role))
     .default(role.CLIENT),
   
-  verifyToken: Joi.number().default(null),
+  verifyToken: Joi.string().default(null),
   expiredVerifyTokenAt: Joi.date().default(null),
 
   createdAt: Joi.date().default(() => new Date()),

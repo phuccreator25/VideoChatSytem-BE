@@ -238,6 +238,29 @@ const updateById = async ({ _id, data }) => {
   return result;
 };
 
+//Chỉ dùng cho viêc restart server
+const updateMany = async (filter = {}, data = {}, options = {}) => {
+  const { lastSeenAt, ...restData } = data;
+
+  return await GET_DB()
+    .collection(USER_MODEL.COLECTION_USER_NAME)
+    .updateMany(
+      filter,
+      [
+        {
+          $set: {
+            ...restData,
+            lastSeenAt: {
+              $ifNull: ["$lastSeenAt", lastSeenAt],
+            },
+            updatedAt: new Date(),
+          },
+        },
+      ],
+      options
+    );
+};
+
 export const USER_REPOSITORY = {
   createOne,
   findById,
@@ -246,5 +269,6 @@ export const USER_REPOSITORY = {
   updateOne,
   updateById,
   findByUser,
-  findByToken
+  findByToken,
+  updateMany
 };

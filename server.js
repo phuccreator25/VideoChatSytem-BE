@@ -11,11 +11,23 @@ import conversationRouter from './src/routes/conversation.route.js'
 
 import { arjectProtection } from './src/middleware/arject.middleware.js'
 import { app, server } from './src/sockets/socket.js'
+import chatRouter from './src/routes/chat.route.js'
+import { USER_REPOSITORY } from './src/repository/user.repository.js'
 
 dotenv.config()
 
 const SERVER = async () => {
   await connectDB()
+
+  //server restart thì chuyển toàn bộ sang offline tránh online ảo
+  await USER_REPOSITORY.updateMany(
+    { status: "online" },
+    {
+      status: "offline",
+      lastSeenAt: new Date(),
+      updatedAt: new Date(),
+    }
+  )
 
   app.use(cors({
     origin: 'http://localhost:5173',
@@ -26,6 +38,7 @@ const SERVER = async () => {
 
 //   app.use(express.json())
   app.use(cookieParser())
+
   app.use(arjectProtection)
 
   app.use('/api', userRouter)
@@ -33,6 +46,7 @@ const SERVER = async () => {
   app.use('/api', contactRouter)
   app.use('/api', blockRouter)
   app.use('/api', conversationRouter)
+  app.use('/api', chatRouter)
 
   app.use((err, req, res, next) => {
     const statusCode = err.statusCode || 500

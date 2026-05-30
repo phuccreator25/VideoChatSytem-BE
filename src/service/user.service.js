@@ -1,4 +1,3 @@
-import { log } from "console";
 import { EXP_REFRESH_TOKEN, EXP_TOKEN } from "../config/auth.js";
 import { sendMail } from "../config/sendMail.js";
 import { DEVICE_SESSION_REPOSITORY } from "../repository/deviceSession.repository.js";
@@ -9,7 +8,18 @@ import jwt from "jsonwebtoken";
 import env from "../config/env.js";
 import cloudinary from "../config/cloudinary.js";
 import { uploadBufferToCloudinary } from "../helper/uploadBuffer.js";
-import { disconnectUserSession } from "../sockets/socketStore.js";
+import {
+  addUserSocket,
+  disconnectUserSession,
+  isUserOnline,
+  removeUserSocket,
+} from "../sockets/socketStore.js";
+import { CONTACT_SERVICE } from "./contacts.service.js";
+import {
+  emitOnlineUsers,
+  emitPresenceChanged,
+} from "../sockets/emitters/auth.emitter.js";
+import { log } from "console";
 
 const onRegister = async (payload) => {
   try {
@@ -26,12 +36,13 @@ const onRegister = async (payload) => {
         type: "active_account",
       },
       env.JWT_SECRET,
-      { expiresIn: "15m" }
+      { expiresIn: "15m" },
     );
 
     const activationLink = `${env.HOST_NAME}/active-account?token=${verifyToken}`;
 
-    if (existingUser) { // Xử lý nếu user đã đăng nhập từ trước nhưng chưa active
+    if (existingUser) {
+      // Xử lý nếu user đã đăng nhập từ trước nhưng chưa active
       if (existingUser.isActive) {
         throw new Error("Email này đã được đăng ký tài khoản");
       }
@@ -109,9 +120,9 @@ const onLogin = async (payload) => {
 
     if (!user) throw new Error("Tài khoản không tồn tại");
 
-    if(!user.isActive) throw new Error("Tài khoản chưa được kích hoạt");
+    if (!user.isActive) throw new Error("Tài khoản chưa được kích hoạt");
 
-    if(user.isBanned) throw new Error("Tài khoản này đã bị khóa")
+    if (user.isBanned) throw new Error("Tài khoản này đã bị khóa");
 
     const isPasswordValid = await bcrypt.compare(
       payload.password,
@@ -125,13 +136,6 @@ const onLogin = async (payload) => {
       ...user,
     };
 
-    await USER_REPOSITORY.updateById({
-      _id: user._id,
-      data: {
-        status: "online",
-      },
-    })
-
     return await handleDeviceSession(data);
   } catch (error) {
     console.error("LOGIN ERROR:", error);
@@ -139,42 +143,34 @@ const onLogin = async (payload) => {
   }
 };
 
-const onLogOut = async (payload) => {
+const onLogOut = async (refreshToken) => {
   try {
-    const token = payload;
-    const dataToken = jwt.verify(token, env.JWT_SECRET);
+    if (!refreshToken) {
+      throw new Error("Phiên đăng nhập không tồn tại");
+    }
+
+    const session = await DEVICE_SESSION_REPOSITORY.findOne({
+      refreshToken,
+      revokedAt: null,
+    });
+
+    if (!session) {
+      throw new Error(
+        "Phiên đăng nhập của bạn không tồn tại hoặc đã bị đăng xuất",
+      );
+    }
+
+    const revokedAt = new Date();
 
     const dataLogOut = await DEVICE_SESSION_REPOSITORY.updateOne(
-      { sessionId: dataToken.sessionId },
+      { refreshToken },
       {
-        revokedAt: new Date(),
-        updatedAt: new Date(),
+        revokedAt,
+        updatedAt: revokedAt,
       },
     );
 
-    if (!dataLogOut) {
-      throw new Error("Phiên đăng nhập của bạn không tồn tại");
-    }
-
-    const activeSessions = await DEVICE_SESSION_REPOSITORY.findMany({
-      userId: dataToken.id,
-      revokedAt: null,
-      expiredAt: { $gt: new Date() },
-    });
-
-    // Update user's online status
-    if (!activeSessions || activeSessions.length === 0) {
-      await USER_REPOSITORY.updateById({
-        _id: dataToken.id,
-        data: {
-          status: "offline",
-          lastSeenAt: new Date(),
-        },
-      });
-    }
-
-    //disconnect toàn bộ socket thuộc session
-    await disconnectUserSession(dataToken.id, dataToken.sessionId)
+    disconnectUserSession(session.userId, session.sessionId);
 
     return dataLogOut;
   } catch (error) {
@@ -200,7 +196,7 @@ const onForgotPassword = async (payload) => {
         type: "reset_password",
       },
       env.JWT_SECRET,
-      { expiresIn: "15m" }
+      { expiresIn: "15m" },
     );
 
     const link = `${process.env.HOST_NAME}/reset-password?token=${verifyToken}`;
@@ -238,8 +234,8 @@ const onResetPassword = async (payload) => {
 
     if (!isAccount) throw new Error("Tài khoản của bạn không tồn tại");
 
-    if(isAccount.expiredVerifyTokenAt < new Date())
-      throw new Error('The password change deadline has passed.')
+    if (isAccount.expiredVerifyTokenAt < new Date())
+      throw new Error("The password change deadline has passed.");
 
     const saltRounds = 10;
     const hashedPassword = await bcrypt.hash(payload.password, saltRounds);
@@ -250,8 +246,8 @@ const onResetPassword = async (payload) => {
     };
 
     const data = await USER_REPOSITORY.updateOne(dataUpdate);
-    
-    return data
+
+    return data;
   } catch (error) {
     console.log("RESET ", error);
     throw error;
@@ -268,134 +264,65 @@ const onGetUsers = async (payload) => {
   }
 };
 
-const handleDeviceSession = async (data) => {
-  const { deviceId } = data;
-
-  const expiredAt = addDay(EXP_REFRESH_TOKEN);
-  const sessionId = randomBytes(32).toString("hex");
-
-  const token = jwt.sign({ id: data._id, sessionId }, env.JWT_SECRET, {
-    expiresIn: `${EXP_TOKEN}m`,
-  });
-
-  const refreshToken = randomBytes(64).toString("hex");
-
-  const dataDeviceSession = {
-    sessionId: sessionId,
-    userId: data._id.toString(),
-    deviceId: deviceId,
-    name: deviceId,
-    userAgent: data.userAgent,
-    refreshToken: refreshToken,
-    expiredAt: expiredAt,
-    ipAddress: data.ipAddress,
-  };
-
-  await DEVICE_SESSION_REPOSITORY.createOne(dataDeviceSession);
-
-  return {
-    token,
-    refreshToken,
-    expiredAt,
-    sessionId,
-    data,
-  };
-};
-
-const handleUpdateDeviceSession = async (data) => {
-  try {
-    const { sessionId } = data;
-    const expiredAt = addDay(EXP_REFRESH_TOKEN);
-
-    const token = jwt.sign(
-      { id: data.userId, sessionId },
-      env.JWT_SECRET,
-      { expiresIn: `${EXP_TOKEN}m` },
-    );
-
-    const refreshToken = randomBytes(64).toString("hex");
-
-    const dataUpdate = {
-      refreshToken: refreshToken,
-      expiredAt: expiredAt,
-      revokedAt: null,
-      lastSeenAt: new Date(),
-      updatedAt: new Date(),
-    };
-
-    await DEVICE_SESSION_REPOSITORY.updateOne({ sessionId }, dataUpdate);
-
-    return {
-      token,
-      refreshToken,
-      expiredAt,
-      sessionId,
-    };
-  } catch (error) {
-    console.log("UPDATE DEVICE SESSION ", error);
-    throw error;
-  }
-};
-
 const onUpdateUser = async ({ _id, payload }) => {
   try {
-    const user = await USER_REPOSITORY.findById(_id)
-    if (!user) throw new Error("Không tìm thấy tài khoản cần cập nhật")
+    const user = await USER_REPOSITORY.findById(_id);
+    if (!user) throw new Error("Không tìm thấy tài khoản cần cập nhật");
 
-    const updateData = {}
+    const updateData = {};
 
     if (payload.fullname !== undefined) {
-      updateData.fullname = payload.fullname
+      updateData.fullname = payload.fullname;
     }
 
     if (payload.username !== undefined) {
-      updateData.username = payload.username
+      updateData.username = payload.username;
     }
 
     if (payload.password) {
       if (!payload.currentPass) {
-        throw new Error("Vui lòng nhập mật khẩu hiện tại")
+        throw new Error("Vui lòng nhập mật khẩu hiện tại");
       }
 
-      const isMatch = await bcrypt.compare(payload.currentPass, user.password)
+      const isMatch = await bcrypt.compare(payload.currentPass, user.password);
       if (!isMatch) {
-        throw new Error("Mật khẩu hiện tại không đúng")
+        throw new Error("Mật khẩu hiện tại không đúng");
       }
 
-      const saltRounds = 10
-      const hashedPassword = await bcrypt.hash(payload.password, saltRounds)
-      updateData.password = hashedPassword
+      const saltRounds = 10;
+      const hashedPassword = await bcrypt.hash(payload.password, saltRounds);
+      updateData.password = hashedPassword;
     }
 
     if (payload.file) {
-      if(user.avatar){
+      if (user.avatar) {
         const OldAvatar = getPublicIdAvatar(user.avatar);
 
-        if(OldAvatar){
+        if (OldAvatar) {
           try {
-            await cloudinary.uploader.destroy(OldAvatar)
+            await cloudinary.uploader.destroy(OldAvatar);
           } catch (error) {
-            console.log('DELETE OLD AVATAR ERROR:', error)
+            console.log("DELETE OLD AVATAR ERROR:", error);
           }
         }
       }
-      
-      const upload = await uploadBufferToCloudinary(payload.file.buffer, {
-        folder: 'Chat_System_Avatars'
-      })
 
-      updateData.avatar = upload.secure_url
+      const upload = await uploadBufferToCloudinary(payload.file.buffer, {
+        folder: "Chat_System_Avatars",
+      });
+
+      updateData.avatar = upload.secure_url;
     }
 
     return await USER_REPOSITORY.updateById({
       _id,
-      data: updateData
-    })
+      data: updateData,
+    });
   } catch (error) {
-    console.log("UPDATE USER: ", error)
-    throw error
+    console.log("UPDATE USER: ", error);
+    throw error;
   }
-}
+};
 
 const onRefreshToken = async (refreshToken) => {
   try {
@@ -439,6 +366,90 @@ const onRefreshToken = async (refreshToken) => {
   }
 };
 
+const onSearchUser = async ({ keyword, currentUserId }) => {
+  try {
+    if (!keyword?.trim()) return [];
+
+    const users = await USER_REPOSITORY.findByUser({
+      keyword,
+      currentUserId,
+    });
+
+    return users;
+  } catch (error) {
+    throw error;
+  }
+};
+
+const onUpdateStatus = async (userId, data = {}) => {
+  const updateData = {
+    status: data.status,
+  };
+
+  if (data.lastSeenAt !== undefined) {
+    updateData.lastSeenAt = data.lastSeenAt;
+  }
+
+  return await USER_REPOSITORY.updateById({
+    _id: userId,
+    data: updateData,
+  });
+};
+
+const onHandleUserConnected = async ({ userId, sessionId, socket }) => {
+  addUserSocket(userId, sessionId, socket);
+
+  await onUpdateStatus(userId, {
+    status: "online",
+    lastSeenAt: null
+  });
+
+  const initialOnlineContactIds =
+    await CONTACT_SERVICE.onGetContactOfUserOnline(userId);
+
+  emitOnlineUsers(userId, initialOnlineContactIds);
+
+  initialOnlineContactIds.forEach((contactUserId) => {
+    emitPresenceChanged(contactUserId, {
+      userId,
+      isOnline: true,
+      lastSeenAt: null,
+    });
+  });
+
+  console.log('okoko ', userId);
+  
+};
+
+const onHandleUserDisconnected = async ({ userId, sessionId, socket }) => {
+  removeUserSocket(userId, sessionId, socket.id);
+
+  if (!isUserOnline(userId)) {
+    const lastSeenAt = new Date();
+
+    await onUpdateStatus(userId, {
+      status: "offline",
+      lastSeenAt,
+    });
+
+    const onlineContactIds =
+      await CONTACT_SERVICE.onGetContactOfUserOnline(userId);
+
+    onlineContactIds.forEach((contactUserId) => {
+      emitPresenceChanged(contactUserId, {
+        userId,
+        isOnline: false,
+        lastSeenAt,
+      });
+    });
+  }
+
+  const latestOnlineContactIds =
+    await CONTACT_SERVICE.onGetContactOfUserOnline(userId);
+
+  emitOnlineUsers(userId, latestOnlineContactIds);
+};
+
 const addDay = (days) => {
   const date = new Date();
   date.setDate(date.getDate() + days);
@@ -446,29 +457,81 @@ const addDay = (days) => {
 };
 
 const getPublicIdAvatar = (url) => {
-  if (!url) return null
+  if (!url) return null;
 
-  const parts = url.split('/upload/')
-  if (parts.length < 2) return null
+  const parts = url.split("/upload/");
+  if (parts.length < 2) return null;
 
-  const pathWithVersion = parts[1]
-  const pathWithoutVersion = pathWithVersion.replace(/^v\d+\//, '')
-  const publicId = pathWithoutVersion.replace(/\.[^/.]+$/, '')
+  const pathWithVersion = parts[1];
+  const pathWithoutVersion = pathWithVersion.replace(/^v\d+\//, "");
+  const publicId = pathWithoutVersion.replace(/\.[^/.]+$/, "");
 
-  return publicId
-}
+  return publicId;
+};
 
-const onSearchUser = async ({ keyword, currentUserId }) => {
+const handleDeviceSession = async (data) => {
+  const { deviceId } = data;
+
+  const expiredAt = addDay(EXP_REFRESH_TOKEN);
+  const sessionId = randomBytes(32).toString("hex");
+
+  const token = jwt.sign({ id: data._id, sessionId }, env.JWT_SECRET, {
+    expiresIn: `${EXP_TOKEN}m`,
+  });
+
+  const refreshToken = randomBytes(64).toString("hex");
+
+  const dataDeviceSession = {
+    sessionId: sessionId,
+    userId: data._id.toString(),
+    deviceId: deviceId,
+    name: deviceId,
+    userAgent: data.userAgent,
+    refreshToken: refreshToken,
+    expiredAt: expiredAt,
+    ipAddress: data.ipAddress,
+  };
+
+  await DEVICE_SESSION_REPOSITORY.createOne(dataDeviceSession);
+
+  return {
+    token,
+    refreshToken,
+    expiredAt,
+    sessionId,
+    data,
+  };
+};
+
+const handleUpdateDeviceSession = async (data) => {
   try {
-    if (!keyword?.trim()) return [];
+    const { sessionId } = data;
+    const expiredAt = addDay(EXP_REFRESH_TOKEN);
 
-    const users = await USER_REPOSITORY.findByUser({
-      keyword,
-      currentUserId
+    const token = jwt.sign({ id: data.userId, sessionId }, env.JWT_SECRET, {
+      expiresIn: `${EXP_TOKEN}m`,
     });
 
-    return users;
+    const refreshToken = randomBytes(64).toString("hex");
+
+    const dataUpdate = {
+      refreshToken: refreshToken,
+      expiredAt: expiredAt,
+      revokedAt: null,
+      lastSeenAt: new Date(),
+      updatedAt: new Date(),
+    };
+
+    await DEVICE_SESSION_REPOSITORY.updateOne({ sessionId }, dataUpdate);
+
+    return {
+      token,
+      refreshToken,
+      expiredAt,
+      sessionId,
+    };
   } catch (error) {
+    console.log("UPDATE DEVICE SESSION ", error);
     throw error;
   }
 };
@@ -483,5 +546,8 @@ export const USER_SERVICE = {
   onGetUsers,
   onRefreshToken,
   onUpdateUser,
-  onSearchUser
+  onSearchUser,
+  onUpdateStatus,
+  onHandleUserConnected,
+  onHandleUserDisconnected,
 };

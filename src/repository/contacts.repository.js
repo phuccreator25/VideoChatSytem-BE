@@ -48,7 +48,6 @@ const findUserOnline = async (filter) => {
                 $expr: {
                   $and: [
                     { $eq: [{ $toString: "$_id" }, "$$contactUserId"] },
-                    { $eq: ["$status", "online"] },
                   ],
                 },
               },

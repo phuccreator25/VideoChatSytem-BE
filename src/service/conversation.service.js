@@ -5,9 +5,12 @@ import { CONVERSATION_PARTICIPANT_REPOSITORY } from "../repository/conversationP
 import { MESSAGE_REPOSITORY } from "../repository/message.repository.js";
 import { USER_REPOSITORY } from "../repository/user.repository.js";
 import { client } from "../config/database.js";
+import { isUserOnline } from "../sockets/socketStore.js";
+import { INVITATION_REPOSITORY } from "../repository/invitation.repository.js";
 
 const onGetOrCreateConversation = async ({ currentUserId, userId }) => {
-  if (!currentUserId || !userId) throw new Error("UserID or CurrentUserId are required");
+  if (!currentUserId || !userId)
+    throw new Error("UserID or CurrentUserId are required");
   if (String(currentUserId) === String(userId)) {
     throw new Error("Cannot create conversation with yourself");
   }
@@ -15,7 +18,7 @@ const onGetOrCreateConversation = async ({ currentUserId, userId }) => {
   const conversation =
     await CONVERSATION_REPOSITORY.findConversationBetweenUser(
       currentUserId,
-      userId
+      userId,
     );
 
   if (conversation) return conversation;
@@ -25,7 +28,7 @@ const onGetOrCreateConversation = async ({ currentUserId, userId }) => {
     created_by: currentUserId,
     createdAt: new Date(),
   };
-  
+
   const session = client.startSession();
 
   try {
@@ -33,7 +36,7 @@ const onGetOrCreateConversation = async ({ currentUserId, userId }) => {
 
     const newConversation = await CONVERSATION_REPOSITORY.createOne(
       newConversationData,
-      session
+      session,
     );
 
     await CONVERSATION_PARTICIPANT_REPOSITORY.createOne(
@@ -41,7 +44,7 @@ const onGetOrCreateConversation = async ({ currentUserId, userId }) => {
         conversationId: newConversation._id.toString(),
         userId: currentUserId,
       },
-      session
+      session,
     );
 
     await CONVERSATION_PARTICIPANT_REPOSITORY.createOne(
@@ -49,14 +52,14 @@ const onGetOrCreateConversation = async ({ currentUserId, userId }) => {
         conversationId: newConversation._id.toString(),
         userId: userId,
       },
-      session
+      session,
     );
 
     await session.commitTransaction();
     return newConversation;
   } catch (error) {
     console.log(error);
-    
+
     await session.abortTransaction();
     throw error;
   } finally {
@@ -85,12 +88,25 @@ const onGetConversationById = async ({ conversationId, currentUserId }) => {
     throw new Error("You are not a participant of this conversation");
   }
 
-  const [userData, contactData, messages] = await Promise.all([
+  const [userData, contactData, messages, Invitation] = await Promise.all([
     USER_REPOSITORY.findById(otherUserId),
     CONTACTS_REPOSITORY.findContactItem(currentUserId, otherUserId),
     MESSAGE_REPOSITORY.findByConversationId(conversationId, {
       limit: 30,
       sort: { createdAt: -1 },
+    }),
+    INVITATION_REPOSITORY.findByFilter({
+      status: "pending",
+      $or: [
+        {
+          senderId: currentUserId,
+          receiverId: otherUserId,
+        },
+        {
+          senderId: otherUserId,
+          receiverId: currentUserId,
+        },
+      ],
     }),
   ]);
 
@@ -111,14 +127,32 @@ const onGetConversationById = async ({ conversationId, currentUserId }) => {
       avatar: userData.avatar,
       fullname: userData.fullname,
       nickname: contactData?.nickname || null,
-      isOnline: userData.status,
+      isOnline: isUserOnline(userData._id) ? "online" : "offline",
       lastSeenAt: userData.lastSeenAt || null,
+      invitationId: Invitation?._id || null,
+      relationStatus: contactData
+        ? "none"
+        : Invitation
+          ? Invitation.senderId.toString() === currentUserId.toString()
+            ? "sent"
+            : "received"
+          : "add",
     },
     messages: messages.reverse(),
   };
 };
 
+const onGetConversation = async ({ currentUserId }) => {
+  if (!currentUserId) return;
+
+  const conversations =
+    await CONVERSATION_REPOSITORY.findListByUserId(currentUserId);
+
+  return conversations || [];
+};
+
 export const CONVERSATION_SERVICE = {
   onGetOrCreateConversation,
   onGetConversationById,
+  onGetConversation,
 };

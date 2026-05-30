@@ -72,14 +72,14 @@ const onLogin = async (req, res, next) => {
 
 const onLogOut = async (req, res, next) => {
   try {
-    const isProduction = env.NODE_ENV === "production";
+    const refreshToken = req.cookies?.refreshToken;
 
-    const accessToken = req.cookies?.accessToken;
-    if (!accessToken) {
-      throw new Error("Bạn chưa đăng nhập");
+    if (refreshToken) {
+      await USER_SERVICE.onLogOut(refreshToken);
     }
 
-    await USER_SERVICE.onLogOut(accessToken);
+    const isProduction = env.NODE_ENV === "production";
+
     res.clearCookie("accessToken", {
       httpOnly: true,
       secure: isProduction,
@@ -93,10 +93,26 @@ const onLogOut = async (req, res, next) => {
     });
 
     return res.status(200).json({
-      message: "Đã đăng xuất tài khoản thành công",
+      message: "Đăng xuất thành công",
     });
   } catch (error) {
-    next(error);
+    const isProduction = env.NODE_ENV === "production";
+
+    res.clearCookie("accessToken", {
+      httpOnly: true,
+      secure: isProduction,
+      sameSite: "strict",
+    });
+
+    res.clearCookie("refreshToken", {
+      httpOnly: true,
+      secure: isProduction,
+      sameSite: "strict",
+    });
+
+    return res.status(200).json({
+      message: "Đăng xuất thành công",
+    });
   }
 };
 
@@ -122,7 +138,6 @@ const onResetPassword = async (req, res, next) => {
     };
 
     const result = await USER_SERVICE.onResetPassword(data);
-    console.log(result);
     
     return res.status(200).json({
       message: "Đổi mật khẩu thành công",
@@ -141,7 +156,9 @@ const onRefreshToken = async (req, res, next) => {
     const refreshToken = req.cookies?.refreshToken;
 
     if (!refreshToken) {
-      throw new Error("Vui lòng đăng nhập tài khoản lại");
+      return res.status(401).json({
+        message: "Vui lòng đăng nhập tài khoản lại",
+      });
     }
 
     const result = await USER_SERVICE.onRefreshToken(refreshToken);

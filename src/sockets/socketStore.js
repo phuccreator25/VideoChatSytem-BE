@@ -1,7 +1,5 @@
 const userSocketMap = {};
 
-// { userId: { sessionId: { socketId: socket } } }
-
 export function addUserSocket(userId, sessionId, socket) {
   if (!userSocketMap[userId]) {
     userSocketMap[userId] = {};
@@ -43,26 +41,17 @@ export function disconnectUserSession(userId, sessionId) {
   if (!sessionSockets) return;
 
   const sockets = Object.values(sessionSockets);
+
   sockets.forEach((socket) => {
     if (socket?.connected) {
       socket.disconnect(true);
     }
   });
-
-  if (!userSocketMap[userId]) return;
-
-  delete userSocketMap[userId][sessionId];
-
-  if (Object.keys(userSocketMap[userId]).length === 0) {
-    delete userSocketMap[userId];
-  }
-}
-
-export function getOnlineUserIds() {
-  return Object.keys(userSocketMap);
 }
 
 export function isUserOnline(userId) {
+  if (!userId) return false;
+  
   if (!userSocketMap[userId]) return false;
 
   return Object.values(userSocketMap[userId]).some(

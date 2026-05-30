@@ -4,8 +4,7 @@ import express from "express";
 import env from "../config/env.js";
 import { socketMiddleware } from "../middleware/socketMiddleware.js";
 import { registerAuthSocket } from "./handlers/auth.socket.js";
-import { registerInvitationSocket } from "./handlers/invitation.socket.js";
-import { registerContactSocket } from "./handlers/contact.socket.js";
+import { registerMessageSocket } from "./handlers/messages.socket.js";
 
 const app = express();
 app.use(express.json());
@@ -27,8 +26,7 @@ io.on("connection", async (socket) => {
   );
 
   await registerAuthSocket(io, socket);
-  registerInvitationSocket(io, socket);
-  registerContactSocket(io, socket);
+  registerMessageSocket(io, socket)
 });
 
 export { io, app, server };

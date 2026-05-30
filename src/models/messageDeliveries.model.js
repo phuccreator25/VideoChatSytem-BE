@@ -5,6 +5,7 @@ const COLLECTION_MESSAGE_DELIVERY_NAME = "messageDeliveries";
 const COLLECTION_MESSAGE_DELIVERY_SCHEMA = Joi.object({
   messageId: Joi.string().required().trim(),
   userId: Joi.string().required().trim(),
+  conversationId: Joi.string().required().trim(),
 
   readAt: Joi.date().allow(null).default(null),
   deliveredAt: Joi.date().allow(null).default(null),
@@ -18,6 +19,11 @@ const validateData = async (data) => {
     abortEarly: false,
     stripUnknown: true,
   });
+
+  if (validated.readAt && !validated.deliveredAt) {
+    validated.deliveredAt = validated.readAt;
+  }
+
   return validated;
 };
 

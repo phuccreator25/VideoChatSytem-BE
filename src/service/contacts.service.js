@@ -3,6 +3,7 @@ import { CONTACTS_REPOSITORY } from "../repository/contacts.repository.js";
 import { USER_REPOSITORY } from "../repository/user.repository.js";
 import { emitPresenceChanged } from "../sockets/emitters/auth.emitter.js";
 import { emitContactRemove } from "../sockets/emitters/contact.emitter.js";
+import { isUserOnline } from "../sockets/socketStore.js";
 
 const onGetData = async (currentUserId) => {
   const contacts = await CONTACTS_REPOSITORY.findMany(currentUserId);
@@ -80,23 +81,28 @@ const onRemoveContact = async ({ ownerId, friendId }) => {
       session,
     );
 
-    const friendStatus = await USER_REPOSITORY.findById(friendId);
-    const ownerStatus = await USER_REPOSITORY.findById(ownerId);
-
     await session.commitTransaction();
 
-    emitContactRemove(friendId, {});
+    emitContactRemove(friendId, {
+      senderId: ownerId,
+      receiverId: friendId
+    });
+    
+    emitContactRemove(ownerId, {
+      senderId: ownerId,
+      receiverId: friendId
+    });
 
     emitPresenceChanged(friendId, {
-      userId: friendId,
-      isOnline: friendStatus === "online" ? true : false,
-      lastSeenAt: friendStatus === "online" ? null : new Date(),
+      userId: ownerId,
+      isOnline: isUserOnline(ownerId) ? true : false,
+      lastSeenAt: isUserOnline(ownerId) ? null : new Date(),
     });
 
     emitPresenceChanged(ownerId, {
-      userId: ownerId,
-      isOnline: ownerStatus === "online" ? true : false,
-      lastSeenAt: ownerStatus === "online" ? null : new Date(),
+      userId: friendId,
+      isOnline: isUserOnline(friendId) ? true : false,
+      lastSeenAt: isUserOnline(friendId) ? null : new Date(),
     });
 
     return true;
@@ -107,8 +113,23 @@ const onRemoveContact = async ({ ownerId, friendId }) => {
   }
 };
 
+const onGetContactOfUserOnline = async (userId) => {
+  const filter = {
+    userId,
+  };
+
+  const contactIds = await CONTACTS_REPOSITORY.findUserOnline(filter);
+
+  const onlineContactIds = contactIds.filter((contactId) =>
+    isUserOnline(contactId)
+  );
+
+  return onlineContactIds;
+};
+
 export const CONTACT_SERVICE = {
   onGetData,
   onUpdateContact,
   onRemoveContact,
+  onGetContactOfUserOnline
 };

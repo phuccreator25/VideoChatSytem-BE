@@ -29,7 +29,22 @@ const onGetConversationById = async (req, res, next) => {
     }
 }
 
+const onGetConversation = async(req, res, next) => {
+    try {
+        const currentUserId = req.user.id;
+
+        const conversations = await CONVERSATION_SERVICE.onGetConversation({currentUserId});
+
+        return res.status(200).json({
+            data: conversations,
+        });
+    } catch (error) {
+        next(error)
+    }
+}
+
 export const CONVERSATION_CONTROLLER = {
     onGetOrCreateConversation,
     onGetConversationById,
+    onGetConversation
 }
