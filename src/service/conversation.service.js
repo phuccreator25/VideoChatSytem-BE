@@ -7,6 +7,10 @@ import { USER_REPOSITORY } from "../repository/user.repository.js";
 import { client } from "../config/database.js";
 import { isUserOnline } from "../sockets/socketStore.js";
 import { INVITATION_REPOSITORY } from "../repository/invitation.repository.js";
+import {
+  emitDeletePinMessages,
+  emitPinMessages,
+} from "../sockets/emitters/messages.emitter.js";
 
 const onGetOrCreateConversation = async ({ currentUserId, userId }) => {
   if (!currentUserId || !userId)
@@ -60,7 +64,7 @@ const onGetOrCreateConversation = async ({ currentUserId, userId }) => {
   } catch (error) {
     console.log(error);
 
-    await session.abortTransaction();
+    await session.endSession();
     throw error;
   } finally {
     await session.endSession();
@@ -72,7 +76,6 @@ const onGetConversationById = async ({ conversationId, currentUserId }) => {
 
   const conversation = await CONVERSATION_REPOSITORY.findOne({
     _id: new ObjectId(conversationId),
-    type: "direct",
     status: "active",
   });
 
@@ -88,10 +91,10 @@ const onGetConversationById = async ({ conversationId, currentUserId }) => {
     throw new Error("You are not a participant of this conversation");
   }
 
-  const [userData, contactData, messages, Invitation] = await Promise.all([
+  const [userData, contactData, messages, Invitation, pinMessages] = await Promise.all([
     USER_REPOSITORY.findById(otherUserId),
     CONTACTS_REPOSITORY.findContactItem(currentUserId, otherUserId),
-    MESSAGE_REPOSITORY.findByConversationId(conversationId, {
+    MESSAGE_REPOSITORY.findByConversationId(conversationId, currentUserId, {
       limit: 30,
       sort: { createdAt: -1 },
     }),
@@ -108,6 +111,7 @@ const onGetConversationById = async ({ conversationId, currentUserId }) => {
         },
       ],
     }),
+    CONVERSATION_REPOSITORY.findManyPinMessages(conversationId, currentUserId),
   ]);
 
   if (!userData) {
@@ -121,6 +125,7 @@ const onGetConversationById = async ({ conversationId, currentUserId }) => {
       status: conversation.status,
       lastMessageAt: conversation.lastMessageAt,
       lastMessageId: conversation.lastMessageId,
+      pinMessages,
     },
     user: {
       userId: userData._id,
@@ -151,8 +156,229 @@ const onGetConversation = async ({ currentUserId }) => {
   return conversations || [];
 };
 
+const onPinMessages = async ({
+  conversationId,
+  messageId,
+  attachmentId,
+  currentUserId,
+}) => {
+  if (!messageId) throw new Error("Not found message");
+  if (!conversationId) throw new Error("Not found conversation");
+
+  const session = client.startSession();
+
+  try {
+    session.startTransaction();
+
+    const message = await MESSAGE_REPOSITORY.findOne(
+      {
+        _id: new ObjectId(messageId),
+        deletedBy: {
+          $nin: [currentUserId],
+        },
+        isRevoked: false,
+      },
+      session,
+    );
+
+    if (!message) throw new Error("Not found message");
+
+    const conversation = await CONVERSATION_REPOSITORY.findOne(
+      {
+        _id: new ObjectId(conversationId),
+        status: "active",
+      },
+      session,
+    );
+
+    if (!conversation) throw new Error("Not found conversation");
+
+    const otherUser = await CONVERSATION_PARTICIPANT_REPOSITORY.findOne({
+      conversationId,
+      userId: {
+        $ne: currentUserId,
+      },
+      leftAt: null,
+    });
+
+    const pinnedMessageCount = conversation.pinnedMessages?.length || 0;
+
+    if (pinnedMessageCount >= 3)
+      throw new Error("The number of pinned messages has reached its limit.");
+
+    const pinnedCondition = attachmentId
+      ? {
+        messageId: messageId,
+        attachmentId: attachmentId,
+      }
+      : {
+        messageId: messageId,
+        attachmentId: null,
+      };
+
+    const isPinnedMessage = await CONVERSATION_REPOSITORY.findOne(
+      {
+        _id: new ObjectId(conversationId),
+        status: "active",
+
+        pinnedMessages: {
+          $elemMatch: pinnedCondition,
+        },
+      },
+      session,
+    );
+
+    if (isPinnedMessage) {
+      throw new Error(
+        attachmentId
+          ? "This attachment has already been pinned."
+          : "This message has already been pinned.",
+      );
+    }
+
+    const pinnedMessage = await CONVERSATION_REPOSITORY.updateOne(
+      {
+        _id: new ObjectId(conversationId),
+      },
+      {
+        $addToSet: {
+          pinnedMessages: {
+            messageId,
+            attachmentId,
+            pinnedBy: currentUserId,
+            pinnedAt: new Date(),
+          },
+        },
+        $set: {
+          updatedAt: new Date(),
+        },
+      },
+      session,
+    );
+
+    const dataCreated = {
+      id: message._id,
+      conversationId: message.conversationId,
+      senderId: message.senderId,
+      type: message.type,
+      content: message.content ?? null,
+      gifUrl: message.gifUrl ?? null,
+      attachmentId,
+      attachments:
+        attachmentId !== null
+          ? message.attachments.filter(
+            (item) => item.attachmentId === attachmentId,
+          )
+          : (message.attachments ?? []),
+      createdAt: message.createdAt,
+    };
+
+    await session.commitTransaction();
+
+    emitPinMessages(currentUserId, dataCreated);
+    emitPinMessages(
+      otherUser.userId,
+      dataCreated,
+    );
+
+    return dataCreated;
+  } catch (error) {
+    throw error;
+  } finally {
+    session.endSession();
+  }
+};
+
+const onGetPinMessages = async (conversationId, currentUserId = null) => {
+  if (!conversationId) throw new Error("Unable to load pinned message");
+
+  const conversation = await CONVERSATION_REPOSITORY.findOne({
+    _id: new ObjectId(conversationId),
+  });
+
+  if (!conversation) throw new Error("Not found conversation");
+
+  const pinMessages =
+    await CONVERSATION_REPOSITORY.findManyPinMessages(conversationId, currentUserId);
+
+  return {
+    conversationId,
+    pinMessages,
+  };
+};
+
+const onDeletePinMessages = async ({
+  conversationId,
+  messageId,
+  attachmentId,
+  currentUserId
+}) => {
+  if (!conversationId) throw new Error("Not found conversantion");
+  if (!messageId) throw new Error("Not found message");
+
+  const session = client.startSession();
+  try {
+    session.startTransaction();
+
+    const conversation = await CONVERSATION_REPOSITORY.findOne(
+      {
+        _id: new ObjectId(conversationId),
+        status: "active",
+      },
+      session,
+    );
+
+    if (!conversation) throw new Error("Not found conversation");
+
+    const message = await MESSAGE_REPOSITORY.findOne(
+      {
+        _id: new ObjectId(messageId),
+      },
+      session,
+    );
+
+    if (!message) throw new Error("Not found message");
+
+    await CONVERSATION_REPOSITORY.deletePinMessage(
+      conversationId,
+      messageId,
+      attachmentId === "null" ? null : attachmentId,
+      session,
+    );
+
+    const otherUser = await CONVERSATION_PARTICIPANT_REPOSITORY.findOne({
+      conversationId,
+      userId: {
+        $ne: currentUserId,
+      },
+      leftAt: null,
+    });
+
+    await session.commitTransaction();
+
+    const dataDeleted = {
+      conversationId,
+      messageId,
+      attachmentId
+    }
+
+    await emitDeletePinMessages(currentUserId, dataDeleted);
+
+    await emitDeletePinMessages(otherUser.userId, dataDeleted);
+
+    return dataDeleted
+  } catch (error) {
+    throw error;
+  } finally {
+    await session.endSession();
+  }
+};
+
 export const CONVERSATION_SERVICE = {
   onGetOrCreateConversation,
   onGetConversationById,
   onGetConversation,
+  onPinMessages,
+  onGetPinMessages,
+  onDeletePinMessages,
 };

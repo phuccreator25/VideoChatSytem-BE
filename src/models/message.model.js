@@ -13,17 +13,51 @@ const COLLECTION_MESSAGE_SCHEMA = Joi.object({
 
   content: Joi.string().trim().allow(null, "").default(null),
 
-  fileUrl: Joi.string().trim().allow(null, "").default(null),
-  fileName: Joi.string().trim().allow(null, "").default(null),
-  fileSize: Joi.number().integer().min(0).allow(null).default(null),
+  attachments: Joi.array()
+    .items(
+      Joi.object({
+        attachmentId: Joi.string().trim().required(),
+        tempAttachmentId: Joi.string().trim().allow(null, "").default(null),
+
+        fileUrl: Joi.string().trim().allow(null, "").default(null),
+        publicId: Joi.string().trim().allow(null, "").default(null),
+
+        fileName: Joi.string().trim().required(),
+        fileSize: Joi.number().integer().min(0).required(),
+        mimeType: Joi.string().trim().required(),
+
+        width: Joi.number().integer().min(0).allow(null).default(null),
+        height: Joi.number().integer().min(0).allow(null).default(null),
+
+        resourceType: Joi.string()
+          .valid("image", "video", "raw", "audio")
+          .default("image"),
+
+        status: Joi.string()
+          .valid("pending", "uploading", "done", "failed")
+          .default("pending"),
+
+        recordDuration: Joi.number().allow(null).default(null),
+
+        createdAt: Joi.date().default(() => new Date()),
+        updatedAt: Joi.date().allow(null).default(null),
+      }),
+    )
+    .default([]),
 
   replyToMessageId: Joi.string().trim().allow(null, "").default(null),
 
   isEdited: Joi.boolean().default(false),
   editedAt: Joi.date().allow(null).default(null),
 
-  isDeleted: Joi.boolean().default(false),
-  deletedAt: Joi.date().allow(null).default(null),
+  gifUrl: Joi.string().trim().allow(null, "").default(null),
+
+  deletedBy: Joi.array().items(Joi.string().trim()).default([]),
+
+  isRevoked: Joi.boolean().default(false),
+  revokedAt: Joi.date().allow(null).default(null),
+
+  sendStatus: Joi.string().valid("sent", "failed").default("sent"),
 
   createdAt: Joi.date().default(() => new Date()),
   updatedAt: Joi.date().allow(null).default(null),
@@ -40,13 +74,6 @@ const validateData = async (data) => {
     (!validated.content || !validated.content.trim())
   ) {
     throw new Error("Text message content is required");
-  }
-
-  if (
-    validated.type !== messageTypes.TEXT &&
-    (!validated.fileUrl || !validated.fileUrl.trim())
-  ) {
-    throw new Error("fileUrl is required for non-text message");
   }
 
   return validated;

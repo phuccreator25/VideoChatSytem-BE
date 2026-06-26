@@ -157,7 +157,7 @@ const findMany = async (currentUserId) => {
       },
       {
         $project: {
-          _id: 0,
+          _id: 1,
           userId: "$contactUserId",
           fullname: "$friendInfo.fullname",
           avatar: "$friendInfo.avatar",

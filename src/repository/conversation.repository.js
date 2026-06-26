@@ -6,6 +6,7 @@ import { USER_MODEL } from "../models/user.model.js";
 import { MESSAGE_MODEL } from "../models/message.model.js";
 import { MESSAGE_DELIVERY_MODEL } from "../models/messageDeliveries.model.js";
 import { isUserOnline } from "../sockets/socketStore.js";
+import { ObjectId } from "mongodb";
 
 const COLLECTION_NAME = CONVERSATION_MODEL.COLLECTION_CONVERSATION_NAME;
 const PARTICIPANT_COLLECTION_NAME =
@@ -16,7 +17,7 @@ const createOne = async (data, session = null) => {
 
   const result = await GET_DB()
     .collection(COLLECTION_NAME)
-    .insertOne(validatedData, {session});
+    .insertOne(validatedData, { session });
 
   return {
     _id: result.insertedId,
@@ -108,22 +109,59 @@ const updateOne = async (filter = {}, updateData = {}, session = null) => {
 const previewByMessage = (message) => {
   if (!message) return "No messages yet";
 
+  if (message.isRevoked) {
+    return "This message has been revoked";
+  }
+
   if (message.type === "text") {
     const content = message.content?.trim?.();
+
     return content || "Text message";
   }
 
-  if (message.type === "image") return "Sent an image";
-  if (message.type === "typing") return "Typing...";
+  if (message.type === "gif") {
+    return "Sent a GIF";
+  }
 
-  return "Sent a file";
+  if (message.type === "typing") {
+    return "Typing...";
+  }
+
+  if (message.type === "file") {
+    const attachment = message.attachments?.[0];
+
+    const resourceType = attachment?.resourceType;
+    const mimeType = String(attachment?.mimeType || "");
+
+    if (
+      resourceType === "audio" ||
+      mimeType.startsWith("audio/")
+    ) {
+      return "Sent a voice";
+    }
+
+    if (
+      resourceType === "video" ||
+      mimeType.startsWith("video/")
+    ) {
+      return "Sent a video";
+    }
+
+    if (
+      resourceType === "image" ||
+      mimeType.startsWith("image/")
+    ) {
+      return "Sent an image";
+    }
+
+    return "Sent a file";
+  }
+
+  return "New message";
 };
 
 const buildInitials = (name = "") => {
-  const words = String(name)
-    .trim()
-    .split(/\s+/)
-    .filter(Boolean);
+  const words = String(name).trim().split(/\s+/).filter(Boolean);
 
   if (!words.length) return "";
 
@@ -274,21 +312,19 @@ const findListByUserId = async (currentUserId) => {
       {
         $lookup: {
           from: MESSAGE_MODEL.COLLECTION_MESSAGE_NAME,
-          let: {
-            lastMessageObjectId: {
-              $convert: {
-                input: "$lastMessageId",
-                to: "objectId",
-                onError: null,
-                onNull: null,
-              },
-            },
-          },
+          let: { conversationIdStr: "$conversationIdStr" }, // Xử lý last message  nếu  bị delete for me
           pipeline: [
             {
               $match: {
-                isDeleted: false,
-                $expr: { $eq: ["$_id", "$$lastMessageObjectId"] },
+                deletedBy: {
+                  $nin: [currentUserId], // Nếu message có id của currentUserId trong deletedBy thì sẽ không lấy message đó
+                },
+                $expr: { $eq: ["$conversationId", "$$conversationIdStr"] },
+              },
+            },
+            {
+              $sort: {
+                createdAt: -1,
               },
             },
             {
@@ -297,6 +333,8 @@ const findListByUserId = async (currentUserId) => {
                 type: 1,
                 content: 1,
                 createdAt: 1,
+                attachments: 1,
+                isRevoked: 1,
               },
             },
             { $limit: 1 },
@@ -345,7 +383,7 @@ const findListByUserId = async (currentUserId) => {
           lastMessageAt: 1,
           createdAt: 1,
           unreadCount: 1,
-          userId: "$otherUser._id"
+          userId: "$otherUser._id",
         },
       },
       {
@@ -367,15 +405,155 @@ const findListByUserId = async (currentUserId) => {
       name: displayName,
       avatar: item.avatar || "",
       initials: buildInitials(displayName),
-      status: isUserOnline(item.userId) ? 'online' : 'offline',
+      status: isUserOnline(item.userId) ? "online" : "offline",
       preview: previewByMessage(item.lastMessage),
       time: formatConversationTime(timeSource),
       type: item.lastMessage?.type === "image" ? "image" : "text",
       unread: item.unreadCount || 0,
       active: false,
-      userId: item.userId
+      userId: item.userId,
     };
   });
+};
+
+const findManyPinMessages = async (conversationId, currentUserId = null, session = null) => {
+  const options = session ? { session } : {};
+
+  const pinnedMessages = await GET_DB()
+    .collection("conversations")
+    .aggregate(
+      [
+        {
+          $match: {
+            _id: new ObjectId(conversationId),
+            status: "active",
+          },
+        },
+
+        // Tách từng phần tử trong pinnedMessages
+        {
+          $unwind: {
+            path: "$pinnedMessages",
+          },
+        },
+        {
+          $addFields: {
+            "pinnedMessages.messageObjectId": {
+              $toObjectId: "$pinnedMessages.messageId",
+            },
+          },
+        },
+        {
+          $lookup: {
+            from: "messages",
+            localField: "pinnedMessages.messageObjectId",
+            foreignField: "_id",
+            as: "message",
+          },
+        },
+
+        {
+          $unwind: {
+            path: "$message",
+          },
+        },
+        {
+          $sort: {
+            "pinnedMessages.pinnedAt": -1,
+          },
+        },
+        {
+          $project: {
+            _id: 0,
+
+            id: "$message._id",
+            conversationId: "$message.conversationId",
+            senderId: "$message.senderId",
+            pinnedBy: "$pinnedMessages.pinnedBy",
+            pinnedAt: "$pinnedMessages.pinnedAt",
+            type: "$message.type",
+            content: {
+              $ifNull: ["$message.content", null],
+            },
+            gifUrl: {
+              $ifNull: ["$message.gifUrl", null],
+            },
+            attachmentId: '$pinnedMessages.attachmentId',
+            attachments: {
+              $cond: [
+                {
+                  $or: [
+                    { $eq: ["$pinnedMessages.attachmentId", null] },
+                    { $eq: ["$pinnedMessages.attachmentId", ""] },
+                  ],
+                },
+
+                // Pin toàn bộ message
+                {
+                  $ifNull: ["$message.attachments", []],
+                },
+
+                // Pin riêng attachment
+                {
+                  $filter: {
+                    input: {
+                      $ifNull: ["$message.attachments", []],
+                    },
+                    as: "attachment",
+                    cond: {
+                      $eq: [
+                        "$$attachment.attachmentId",
+                        "$pinnedMessages.attachmentId",
+                      ],
+                    },
+                  },
+                },
+              ],
+            },
+          },
+        },
+      ],
+      options,
+    )
+    .toArray();
+
+  return pinnedMessages;
+};
+
+const deletePinMessage = async (
+  conversationId,
+  messageId,
+  attachmentId = null,
+  session = null,
+) => {
+  return GET_DB()
+    .collection(COLLECTION_NAME)
+    .updateOne(
+      {
+        _id: new ObjectId(conversationId),
+        status: "active",
+
+        pinnedMessages: {
+          $elemMatch: {
+            messageId: messageId,
+            attachmentId: attachmentId || null,
+          },
+        },
+      },
+      {
+        $pull: {
+          pinnedMessages: {
+            messageId: messageId,
+            attachmentId: attachmentId || null,
+          },
+        },
+
+        $set: {
+          updatedAt: new Date(),
+        },
+      },
+      session ? { session } : undefined,
+    );
 };
 
 export const CONVERSATION_REPOSITORY = {
@@ -383,5 +561,7 @@ export const CONVERSATION_REPOSITORY = {
   findOne,
   findConversationBetweenUser,
   updateOne,
-  findListByUserId
+  findListByUserId,
+  findManyPinMessages,
+  deletePinMessage
 };

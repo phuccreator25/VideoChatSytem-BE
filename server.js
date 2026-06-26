@@ -30,13 +30,18 @@ const SERVER = async () => {
   )
 
   app.use(cors({
-    origin: 'http://localhost:5173',
+    origin: [
+      'http://localhost:5173',
+      'http://127.0.0.1:5173',
+      'http://localhost:30080',
+      'http://127.0.0.1:30080',
+    ],
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
     credentials: true
   }))
 
-//   app.use(express.json())
+  //   app.use(express.json())
   app.use(cookieParser())
 
   app.use(arjectProtection)
@@ -55,6 +60,14 @@ const SERVER = async () => {
       message: err.message || 'Đã xảy ra lỗi vui lòng thử lại'
     })
   })
+
+  try {
+    await import('./src/workers/uploadFileWorker.js')
+    await import('./src/workers/shareMessageWorker.js')
+    console.log('Upload file worker run successfully')
+  } catch (error) {
+    console.error('Failed uploadFileWorker:', error)
+  }
 
   const Port = Number(process.env.PORT) || 3000
 

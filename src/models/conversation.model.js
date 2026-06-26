@@ -13,6 +13,21 @@ const conversationStatus = {
   DELETED: "deleted",
 };
 
+const objectIdSchema = Joi.string()
+  .trim()
+  .pattern(/^[0-9a-fA-F]{24}$/)
+  .message("{{#label}} must be a valid ObjectId");
+
+const pinnedMessageSchema = Joi.object({
+  messageId: objectIdSchema.required(),
+  attachmentId: objectIdSchema.allow(null).default(null),
+
+  pinnedBy: objectIdSchema.required(),
+
+  pinnedAt: Joi.date()
+    .default(() => new Date()),
+});
+
 const COLLECTION_CONVERSATION_SCHEMA = Joi.object({
   name: Joi.string().trim().allow(null, "").default(null),
 
@@ -26,6 +41,12 @@ const COLLECTION_CONVERSATION_SCHEMA = Joi.object({
 
   lastMessageAt: Joi.date().allow(null).default(null),
   lastMessageId: Joi.string().trim().allow(null, "").default(null),
+
+  pinnedMessages: Joi.array()
+    .items(pinnedMessageSchema)
+    .max(3)
+    .unique("messageId")
+    .default([]),
 
   status: Joi.string()
     .valid(...Object.values(conversationStatus))

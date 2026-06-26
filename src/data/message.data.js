@@ -1,7 +1,15 @@
 export const messageTypes = {
   TEXT: "text",
   FILE: "file",
-  IMAGE: "image",
-  VIDEO: "video",
-  AUDIO: "audio",
+  GIF: 'gif'
 };
+
+export const EMOTIONS = [
+  "LOVE",
+  "LIKE",
+  "ANGRY",
+  "WOW",
+  "SAD",
+  "HAHA",
+];
+

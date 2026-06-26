@@ -12,10 +12,10 @@ const createOne = async (data, session = null) => {
     .insertOne(validData, options);
 };
 
-const findOne = async(filter={}) => {
+const findOne = async (filter = {}) => {
   return await GET_DB()
-              .collection(MESSAGE_DELIVERY_MODEL.COLLECTION_MESSAGE_DELIVERY_NAME)
-              .findOne(filter)
+    .collection(MESSAGE_DELIVERY_MODEL.COLLECTION_MESSAGE_DELIVERY_NAME)
+    .findOne(filter)
 
 }
 
@@ -117,7 +117,7 @@ const findAndUpdateMany = async (
   }));
 };
 
-const findMessageAndUpdateRead = async(filter = {}, session = null) => {
+const findMessageAndUpdateRead = async (filter = {}, session = null) => {
   const { conversationId, currentUserId } = filter;
 
   if (!conversationId || !currentUserId) {
@@ -158,7 +158,11 @@ const findMessageAndUpdateRead = async(filter = {}, session = null) => {
                     $and: [
                       { $eq: ["$_id", "$$messageObjectId"] },
                       { $eq: ["$conversationId", conversationId] },
-                      { $eq: ["$isDeleted", false] },
+                      {
+                        $not: {
+                          $in: [currentUserId, { $ifNull: ["$deletedBy", []] }],
+                        },
+                      },
                     ],
                   },
                 },
@@ -229,6 +233,14 @@ const findMessageAndUpdateRead = async(filter = {}, session = null) => {
   }));
 }
 
+const updateOne = async (filter = {}, updateData = {}, session = null) => {
+  const options = session ? { session } : undefined;
+
+  return await GET_DB()
+    .collection(MESSAGE_DELIVERY_MODEL.COLLECTION_MESSAGE_DELIVERY_NAME)
+    .updateOne(filter, updateData, options);
+}
+
 export const MESSAGE_DELIVERY_REPOSITORY = {
-    createOne, findOne, findAndUpdateMany, findMessageAndUpdateRead
+  createOne, findOne, findAndUpdateMany, findMessageAndUpdateRead, updateOne
 }

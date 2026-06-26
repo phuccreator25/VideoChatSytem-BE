@@ -1,13 +1,16 @@
+import { ObjectId } from "mongodb";
 import { GET_DB } from "../config/database.js";
 import { MESSAGE_MODEL } from "../models/message.model.js";
 
 const COLLECTION_NAME = MESSAGE_MODEL.COLLECTION_MESSAGE_NAME;
 
+//FIX LẠI ĐOẠN NÀY TƯƠNG TỰ Ở MESSAGE REACTION REPO
 const buildMessagePipeline = ({
   match,
   sort = null,
   skip = null,
   limit = null,
+  currentUserId = null, // Nhận thêm currentUserId từ repo truyền vào
 }) => {
   const pipeline = [
     {
@@ -15,37 +18,22 @@ const buildMessagePipeline = ({
     },
   ];
 
-  if (sort) {
-    pipeline.push({
-      $sort: sort,
-    });
-  }
+  if (sort) pipeline.push({ $sort: sort });
+  if (skip !== null) pipeline.push({ $skip: skip });
+  if (limit !== null) pipeline.push({ $limit: limit });
 
-  if (skip !== null) {
-    pipeline.push({
-      $skip: skip,
-    });
-  }
+  const currentUserIdStr = currentUserId ? String(currentUserId) : null;
 
-  if (limit !== null) {
-    pipeline.push({
-      $limit: limit,
-    });
-  }
-
+  // Giữ nguyên lookup gốc của bạn
   pipeline.push(
     {
       $lookup: {
         from: "messageDeliveries",
-        let: {
-          messageIdStr: { $toString: "$_id" },
-        },
+        let: { messageIdStr: { $toString: "$_id" } },
         pipeline: [
           {
             $match: {
-              $expr: {
-                $eq: ["$messageId", "$$messageIdStr"],
-              },
+              $expr: { $eq: ["$messageId", "$$messageIdStr"] },
             },
           },
         ],
@@ -53,29 +41,167 @@ const buildMessagePipeline = ({
       },
     },
     {
+      $lookup: {
+        from: "messages",
+        let: { replyId: "$replyToMessageId" },
+        pipeline: [
+          {
+            $match: {
+              $expr: {
+                $and: [
+                  { $ne: ["$$replyId", null] },
+                  { $eq: [{ $toString: "$_id" }, "$$replyId"] },
+                ],
+              },
+            },
+          },
+          { $addFields: { id: { $toString: "$_id" } } },
+          {
+            $project: {
+              _id: 0,
+              id: 1,
+              senderId: 1,
+              type: 1,
+              content: 1,
+              gifUrl: 1,
+              attachments: 1,
+              createdAt: 1,
+              isRevoked: 1,
+              revokedAt: 1,
+            },
+          },
+        ],
+        as: "replyMessageArr",
+      },
+    },
+    {
       $addFields: {
-        id: {
-          $toString: "$_id",
+        replyMessage: { $arrayElemAt: ["$replyMessageArr", 0] },
+      },
+    }
+  );
+
+  // --- ĐOẠN THÊM MỚI: LOOKUP EMOTION REACTIONS ---
+  // --- ĐOẠN THÊM MỚI: LOOKUP EMOTION REACTIONS ---
+  pipeline.push({
+    $lookup: {
+      from: "messageReactions",
+      // SỬA Ở ĐÂY 1: Thêm currentUserId vào let để các pipeline con hiểu được
+      let: {
+        msgIdStr: { $toString: "$_id" },
+        currentUserId: currentUserIdStr
+      },
+      pipeline: [
+        {
+          $match: {
+            $expr: { $eq: ["$messageId", "$$msgIdStr"] },
+          },
         },
+        // Lookup sang bảng users để lấy fullname
+        {
+          $lookup: {
+            from: "users",
+            let: { reactionUserId: "$userId" },
+            pipeline: [
+              {
+                $match: {
+                  $expr: { $eq: ["$_id", { $toObjectId: "$$reactionUserId" }] },
+                },
+              },
+            ],
+            as: "userDoc",
+          },
+        },
+        { $unwind: { path: "$userDoc", preserveNullAndEmptyArrays: true } },
+        // Lookup sang bảng contacts
+        {
+          $lookup: {
+            from: "contacts",
+            let: { reactionUserId: "$userId" },
+            pipeline: [
+              {
+                $match: {
+                  $expr: {
+                    $and: [
+                      // SỬA Ở ĐÂY 2: Đã dùng đúng biến $$currentUserId (đã được định nghĩa ở let phía trên)
+                      { $eq: [{ $toString: "$ownerId" }, "$$currentUserId"] },
+                      { $eq: [{ $toString: "$contactUserId" }, { $toString: "$$reactionUserId" }] },
+                    ],
+                  },
+                },
+              },
+              { $limit: 1 },
+            ],
+            as: "contactDoc",
+          },
+        },
+        { $unwind: { path: "$contactDoc", preserveNullAndEmptyArrays: true } },
+        // Định hình lại output
+        {
+          $project: {
+            _id: 0,
+            userId: { $toString: "$userId" }, // Ép kiểu về String để trả về FE cho đồng nhất
+            emotion: "$emotion",
+            createdAt: 1,
+            name: {
+              $cond: [
+                // SỬA Ở ĐÂY 3: Ép $userId sang chuỗi trước khi so sánh với $$currentUserId (chuỗi) để đảm bảo chính xác 100%
+                { $eq: [{ $toString: "$userId" }, "$$currentUserId"] },
+                "You",
+                {
+                  $cond: [
+                    {
+                      $and: [
+                        { $ifNull: ["$contactDoc.nickname", false] },
+                        { $ne: [{ $trim: { input: "$contactDoc.nickname" } }, ""] }
+                      ]
+                    },
+                    "$contactDoc.nickname",
+                    { $ifNull: ["$userDoc.fullname", "Unknown user"] },
+                  ],
+                },
+              ],
+            },
+          },
+        },
+      ],
+      as: "reactions",
+    },
+  });
+
+  // Tái sử dụng tính toán status và ánh xạ mảng cũ của bạn
+  pipeline.push(
+    {
+      $addFields: {
+        id: { $toString: "$_id" },
+        attachmentCount: { $size: { $ifNull: ["$attachments", []] } },
+        hasDoneAttachment: {
+          $gt: [
+            {
+              $size: {
+                $filter: {
+                  input: { $ifNull: ["$attachments", []] },
+                  as: "attachment",
+                  cond: { $eq: ["$$attachment.status", "done"] },
+                },
+              },
+            },
+            0,
+          ],
+        },
+      },
+    },
+    {
+      $addFields: {
         status: {
           $cond: [
             {
-              $gt: [
-                {
-                  $size: {
-                    $filter: {
-                      input: "$deliveries",
-                      as: "delivery",
-                      cond: {
-                        $ne: ["$$delivery.readAt", null],
-                      },
-                    },
-                  },
-                },
-                0,
+              $and: [
+                { $gt: ["$attachmentCount", 0] },
+                { $eq: ["$hasDoneAttachment", false] },
               ],
             },
-            "read",
+            "sending",
             {
               $cond: [
                 {
@@ -85,17 +211,34 @@ const buildMessagePipeline = ({
                         $filter: {
                           input: "$deliveries",
                           as: "delivery",
-                          cond: {
-                            $ne: ["$$delivery.deliveredAt", null],
-                          },
+                          cond: { $ne: ["$$delivery.readAt", null] },
                         },
                       },
                     },
                     0,
                   ],
                 },
-                "delivered",
-                "sent",
+                "read",
+                {
+                  $cond: [
+                    {
+                      $gt: [
+                        {
+                          $size: {
+                            $filter: {
+                              input: "$deliveries",
+                              as: "delivery",
+                              cond: { $ne: ["$$delivery.deliveredAt", null] },
+                            },
+                          },
+                        },
+                        0,
+                      ],
+                    },
+                    "delivered",
+                    "sent",
+                  ],
+                },
               ],
             },
           ],
@@ -105,9 +248,7 @@ const buildMessagePipeline = ({
             input: "$deliveries",
             as: "delivery",
             in: {
-              id: {
-                $toString: "$$delivery._id",
-              },
+              id: { $toString: "$$delivery._id" },
               messageId: "$$delivery.messageId",
               userId: "$$delivery.userId",
               deliveredAt: "$$delivery.deliveredAt",
@@ -125,18 +266,23 @@ const buildMessagePipeline = ({
         senderId: 1,
         type: 1,
         content: 1,
+        gifUrl: 1,
+        attachments: 1,
         fileUrl: 1,
         fileName: 1,
         fileSize: 1,
         replyToMessageId: 1,
+        replyMessage: 1,
         isEdited: 1,
         editedAt: 1,
-        isDeleted: 1,
+        isRevoked: 1,
+        revokedAt: 1,
         deletedAt: 1,
         createdAt: 1,
         updatedAt: 1,
         deliveries: 1,
         status: 1,
+        reactions: 1, // ĐƯA THÊM REACTIONS VÀO ĐẦU RA PROJECT
       },
     }
   );
@@ -159,19 +305,24 @@ const createOne = async (data, session = null) => {
 };
 
 const findByConversationId = async (
-  conversationId,
-  { limit = 30, skip = 0, sort = { createdAt: 1 }, session = null } = {}
+  conversationId, currentUserId = null,
+  { limit = 30, skip = 0, sort = { createdAt: 1 }, session = null } = {},
 ) => {
   const options = session ? { session } : undefined;
 
+  const match = { conversationId };
+  if (currentUserId) {
+    match.deletedBy = {
+      $nin: [currentUserId],
+    };
+  }
+
   const pipeline = buildMessagePipeline({
-    match: {
-      conversationId,
-      isDeleted: false,
-    },
+    match,
     sort,
     skip,
     limit,
+    currentUserId,
   });
 
   return await GET_DB()
@@ -183,13 +334,9 @@ const findByConversationId = async (
 const findMessageAfterSend = async (messageId, session = null) => {
   const options = session ? { session } : undefined;
 
-  const _id =
-    typeof messageId === "string" ? new ObjectId(messageId) : messageId;
-
   const pipeline = buildMessagePipeline({
     match: {
-      _id,
-      isDeleted: false,
+      _id: new ObjectId(messageId),
     },
   });
 
@@ -201,8 +348,77 @@ const findMessageAfterSend = async (messageId, session = null) => {
   return result[0] || null;
 };
 
+const updateAttachmentStatus = async ({
+  messageId,
+  attachmentId,
+  status,
+  session = null,
+}) => {
+  const options = session ? { session } : {};
+
+  return await GET_DB()
+    .collection(COLLECTION_NAME)
+    .updateOne(
+      {
+        _id: new ObjectId(messageId),
+        "attachments.attachmentId": attachmentId,
+      },
+      {
+        $set: {
+          "attachments.$.status": status,
+          "attachments.$.updatedAt": new Date(),
+          updatedAt: new Date(),
+        },
+      },
+      options,
+    );
+};
+
+const updateAttachmentAfterUpload = async ({
+  messageId,
+  attachmentId,
+  fileUrl,
+  publicId,
+  session = null,
+}) => {
+  const options = session ? { session } : {};
+
+  return await GET_DB()
+    .collection(COLLECTION_NAME)
+    .updateOne(
+      {
+        _id: new ObjectId(messageId),
+        "attachments.attachmentId": attachmentId,
+      },
+      {
+        $set: {
+          "attachments.$.fileUrl": fileUrl,
+          "attachments.$.publicId": publicId,
+          "attachments.$.status": "done",
+          "attachments.$.updatedAt": new Date(),
+          updatedAt: new Date(),
+        },
+      },
+      options,
+    );
+};
+
+const findOne = async (filters = {}, session = null) => {
+  return await GET_DB().collection(COLLECTION_NAME)
+    .findOne(filters, { session })
+}
+
+const updateOne = async (filter = {}, updateData = {}, session = null) => {
+  return await GET_DB().collection(COLLECTION_NAME)
+    .updateOne(filter, updateData, { session })
+}
+
 export const MESSAGE_REPOSITORY = {
   createOne,
   findByConversationId,
-  findMessageAfterSend
+  findMessageAfterSend,
+  updateAttachmentStatus,
+  updateAttachmentAfterUpload,
+  findOne,
+  updateOne
 };

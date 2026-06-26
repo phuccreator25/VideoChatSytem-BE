@@ -27,7 +27,10 @@ const env = {
   CLOUDINARY_API_SECRET: process.env.CLOUDINARY_API_SECRET,
 
   ARCJET_KEY:process.env.ARCJET_KEY,
-  ARCJET_ENV:process.env.ARCJET_ENV
+  ARCJET_ENV:process.env.ARCJETPORT,
+
+  REDIS_HOST:process.env.REDIS_HOST,
+  REDIS_PORT:process.env.REDIS_PORT
 }
 
 export default env
