@@ -97,10 +97,30 @@ const onDeletePinMessages = async (req, res, next) => {
       attachmentId,
       currentUserId
     });
-    
+
     return res.status(201).json({
       data: result,
     });
+  } catch (error) {
+    next(error);
+  }
+};
+
+const onGetMoreMessages = async (req, res, next) => {
+  try {
+    const { conversationId, beforeTimestamp } = req.body;
+    const currentUserId = req.user.id
+
+    const result = await CONVERSATION_SERVICE.onGetMoreMessages({
+      conversationId,
+      beforeTimestamp,
+      currentUserId,
+    });
+
+    return res.status(200).json({
+      data: result,
+    });
+
   } catch (error) {
     next(error);
   }
@@ -113,4 +133,5 @@ export const CONVERSATION_CONTROLLER = {
   onPinMessages,
   onGetPinMessages,
   onDeletePinMessages,
+  onGetMoreMessages,
 };

@@ -374,6 +374,19 @@ const onDeletePinMessages = async ({
   }
 };
 
+const onGetMoreMessages = async ({ conversationId, beforeTimestamp, currentUserId }) => {
+  if (!conversationId) throw new Error("Unable to load messages");
+
+  const messages =
+    await MESSAGE_REPOSITORY.onGetMoreMessages(
+      conversationId,
+      beforeTimestamp,
+      currentUserId,
+    )
+
+  return { conversationId, messages: messages.reverse() };
+};
+
 export const CONVERSATION_SERVICE = {
   onGetOrCreateConversation,
   onGetConversationById,
@@ -381,4 +394,5 @@ export const CONVERSATION_SERVICE = {
   onPinMessages,
   onGetPinMessages,
   onDeletePinMessages,
+  onGetMoreMessages
 };

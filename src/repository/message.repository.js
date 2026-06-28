@@ -413,6 +413,152 @@ const updateOne = async (filter = {}, updateData = {}, session = null) => {
     .updateOne(filter, updateData, { session })
 }
 
+const searchMessages = async ({ conversationId, keyword, currentUserId, session = null }) => {
+  const options = session ? { session } : undefined;
+
+  const match = {
+    conversationId,
+    content: { $regex: keyword, $options: "i" },
+    isRevoked: false,
+  };
+
+  if (currentUserId) {
+    match.deletedBy = {
+      $nin: [currentUserId],
+    };
+  }
+
+  const pipeline = buildMessagePipeline({
+    match,
+    sort: { createdAt: 1 },
+    currentUserId,
+  });
+
+  return await GET_DB()
+    .collection(COLLECTION_NAME)
+    .aggregate(pipeline, options)
+    .toArray();
+};
+
+const onGetMoreMessages = async (
+  conversationId,
+  beforeTimestamp,
+  currentUserId,
+  limit = 30,
+  skip = 0
+) => {
+  const match = {
+    conversationId,
+    createdAt: { $lt: new Date(beforeTimestamp) },
+    isRevoked: false,
+  };
+
+  if (currentUserId) {
+    match.deletedBy = { $nin: [currentUserId] };
+  }
+
+  const pipeline = buildMessagePipeline({
+    match,
+    sort: { createdAt: -1 },
+    skip,
+    limit,
+    currentUserId,
+  });
+
+  return await GET_DB()
+    .collection(COLLECTION_NAME)
+    .aggregate(pipeline)
+    .toArray();
+};
+
+const onGetShareMedia = async (conversationId, limit = 20, skip = 0) => {
+  const results = await GET_DB()
+    .collection(COLLECTION_NAME)
+    .aggregate([
+      { $match: { conversationId, isRevoked: false, type: "file" } },
+      { $unwind: "$attachments" },
+      { $match: { "attachments.resourceType": { $in: ["image", "video"] }, "attachments.status": "done", } },
+      { $sort: { createdAt: -1 } },
+      { $skip: skip },
+      { $limit: limit }
+    ])
+    .toArray();
+
+  return results.map((item) => ({
+    fileUrl: item.attachments.fileUrl,
+    fileName: item.attachments.fileName,
+    fileSize: item.attachments.fileSize,
+    mimeType: item.attachments.mimeType,
+    messageId: item._id,
+    conversationId: item.conversationId,
+    createdAt: item.createdAt,
+  }));
+};
+
+const onGetShareFiles = async (conversationId, limit = 20, skip = 0) => {
+  const results = await GET_DB()
+    .collection(COLLECTION_NAME)
+    .aggregate([
+      { $match: { conversationId, isRevoked: false, type: "file" } },
+      { $unwind: "$attachments" },
+      { $match: { "attachments.resourceType": { $nin: ["image", "video"] }, "attachments.status": "done", } },
+      { $sort: { createdAt: -1 } },
+      { $skip: skip },
+      { $limit: limit }
+    ])
+    .toArray();
+
+  return results.map((item) => ({
+    fileUrl: item.attachments.fileUrl,
+    fileName: item.attachments.fileName,
+    fileSize: item.attachments.fileSize,
+    mimeType: item.attachments.mimeType,
+    messageId: item._id,
+    conversationId: item.conversationId,
+    createdAt: item.createdAt,
+  }));
+};
+
+const onGetShareLinks = async (conversationId, limit = 20, skip = 0) => {
+  const results = await GET_DB()
+    .collection(COLLECTION_NAME)
+    .find({
+      conversationId,
+      content: { $regex: /https?:\/\/[^\s]+/ },
+      isRevoked: false,
+      type: "text"
+    })
+    .sort({ createdAt: -1 })
+    .skip(skip)
+    .limit(limit)
+    .toArray();
+
+  return results.flatMap((item) => {
+    const urls = item.content.match(/https?:\/\/[^\s]+/g) || [];
+    return urls.map((url, index) => {
+      let title = "Web Link";
+      let domain = "";
+      try {
+        const parsedUrl = new URL(url);
+        const hostname = parsedUrl.hostname.replace("www.", "");
+        domain = hostname;
+        title = hostname.charAt(0).toUpperCase() + hostname.slice(1);
+      } catch (e) {
+        // Fallback if URL parsing fails
+      }
+      return {
+        id: `${item._id}-${index}`,
+        url,
+        title,
+        domain,
+        messageId: item._id,
+        conversationId: item.conversationId,
+        createdAt: item.createdAt,
+      };
+    });
+  });
+};
+
 export const MESSAGE_REPOSITORY = {
   createOne,
   findByConversationId,
@@ -420,5 +566,10 @@ export const MESSAGE_REPOSITORY = {
   updateAttachmentStatus,
   updateAttachmentAfterUpload,
   findOne,
-  updateOne
+  updateOne,
+  searchMessages,
+  onGetMoreMessages,
+  onGetShareMedia,
+  onGetShareFiles,
+  onGetShareLinks,
 };

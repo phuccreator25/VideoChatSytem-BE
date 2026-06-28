@@ -107,6 +107,94 @@ const onRevokeMessage = async (req, res, next) => {
   }
 }
 
+const onSearchMessage = async (req, res, next) => {
+  try {
+    const { conversationId } = req.params;
+    const currentUserId = req.user.id;
+    const { keyword } = req.body;
+
+    const messages = await CHAT_SERVICE.onSearchMessage({ conversationId, keyword, currentUserId });
+
+    return res.status(200).json({
+      data: messages
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+const onGetShareMedia = async (req, res, next) => {
+  try {
+    const { conversationId } = req.params;
+    const { limit = 20, skip = 0 } = req.query;
+
+    const messages = await CHAT_SERVICE.onGetShareMedia({
+      conversationId,
+      limit: Number(limit),
+      skip: Number(skip),
+    });
+
+    return res.status(200).json({
+      data: messages,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+const onGetShareFiles = async (req, res, next) => {
+  try {
+    const { conversationId } = req.params;
+    const { limit = 20, skip = 0 } = req.query;
+
+    const messages = await CHAT_SERVICE.onGetShareFiles({
+      conversationId,
+      limit: Number(limit),
+      skip: Number(skip),
+    });
+
+    return res.status(200).json({
+      data: messages,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+const onGetShareLinks = async (req, res, next) => {
+  try {
+    const { conversationId } = req.params;
+    const { limit = 20, skip = 0 } = req.query;
+
+    const messages = await CHAT_SERVICE.onGetShareLinks({
+      conversationId,
+      limit: Number(limit),
+      skip: Number(skip),
+    });
+
+    return res.status(200).json({
+      data: messages,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+const onGetLinkPreview = async (req, res, next) => {
+  try {
+    const { url } = req.query;
+
+    const preview = await CHAT_SERVICE.onGetLinkPreview({ url });
+
+    return res.status(200).json({
+      data: preview,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+
 export const CHAT_CONTROLLER = {
   onSendMessage,
   onReactEmotion,
@@ -114,4 +202,9 @@ export const CHAT_CONTROLLER = {
   onForwardMessage,
   onDeleteMessage,
   onRevokeMessage,
+  onSearchMessage,
+  onGetShareMedia,
+  onGetShareFiles,
+  onGetShareLinks,
+  onGetLinkPreview,
 };

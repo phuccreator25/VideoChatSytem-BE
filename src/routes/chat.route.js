@@ -11,5 +11,11 @@ chatRouter.delete('/chats/unreact-emotion/:conversationId/:messageId', authMiddl
 chatRouter.post('/chats/forward-message/:messageId', authMiddleware, CHAT_CONTROLLER.onForwardMessage)
 chatRouter.delete('/chats/delete-message/:conversationId/:messageId', authMiddleware, CHAT_CONTROLLER.onDeleteMessage)
 chatRouter.put('/chats/revoke-message/:conversationId/:messageId', authMiddleware, CHAT_CONTROLLER.onRevokeMessage)
+chatRouter.post('/chats/search-message/:conversationId', authMiddleware, CHAT_CONTROLLER.onSearchMessage)
+
+chatRouter.get('/chats/share-media/:conversationId', authMiddleware, CHAT_CONTROLLER.onGetShareMedia)
+chatRouter.get('/chats/share-files/:conversationId', authMiddleware, CHAT_CONTROLLER.onGetShareFiles)
+chatRouter.get('/chats/share-links/:conversationId', authMiddleware, CHAT_CONTROLLER.onGetShareLinks)
+chatRouter.get('/chats/link-preview', authMiddleware, CHAT_CONTROLLER.onGetLinkPreview)
 
 export default chatRouter
