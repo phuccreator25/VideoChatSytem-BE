@@ -45,6 +45,17 @@ const COLLECTION_MESSAGE_SCHEMA = Joi.object({
     )
     .default([]),
 
+  preview: Joi.object({
+    title: Joi.string().allow(null, "").default(null),
+    description: Joi.string().allow(null, "").default(null),
+    image: Joi.string().allow(null, "").default(null),
+    url: Joi.string().allow(null, "").default(null),
+    siteName: Joi.string().allow(null, "").default(null),
+    domain: Joi.string().allow(null, "").default(null),
+  })
+    .allow(null)
+    .default(null),
+
   replyToMessageId: Joi.string().trim().allow(null, "").default(null),
 
   isEdited: Joi.boolean().default(false),

@@ -64,9 +64,10 @@ const SERVER = async () => {
   try {
     await import('./src/workers/uploadFileWorker.js')
     await import('./src/workers/shareMessageWorker.js')
-    console.log('Upload file worker run successfully')
+    await import('./src/workers/getLinkPeviewWorker.js')
+    console.log('Worker run successfully')
   } catch (error) {
-    console.error('Failed uploadFileWorker:', error)
+    console.error('Failed worker:', error)
   }
 
   const Port = Number(process.env.PORT) || 3000

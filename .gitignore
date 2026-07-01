@@ -4,3 +4,7 @@ dist
 .env.*
 coverage
 .vscode
+
+.dockerignore
+Dockerfile
+docker-compose.yml

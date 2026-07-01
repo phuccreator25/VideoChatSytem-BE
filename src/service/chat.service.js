@@ -12,7 +12,7 @@ import {
   emitUnReactEmotion,
   emitRevokeMessage,
 } from "../sockets/emitters/messages.emitter.js";
-import { fileUploadQueue, shareMessageQueue } from "../queues/uploadFileQueue.js";
+import { fileUploadQueue, shareMessageQueue, linkPreviewQueue } from "../queues/uploadFileQueue.js";
 import { MESSAGE_REACTION_REPOSITORY } from "../repository/messageReaction.repository.js";
 
 const onSendMessage = async ({
@@ -121,6 +121,17 @@ const onSendMessage = async ({
       updatedAt: now,
     }));
 
+    const preview = message.preview
+      ? {
+        title: message.preview.title,
+        description: message.preview.description,
+        image: message.preview.image,
+        url: message.preview.url,
+        siteName: message.preview.siteName,
+        domain: message.preview.domain,
+      }
+      : null;
+
     const messageType = hasFiles ? "file" : hasGif ? "gif" : "text";
 
     const messageCreate = {
@@ -132,6 +143,7 @@ const onSendMessage = async ({
       gifUrl: messageType === "gif" ? message.gifUrl : null,
 
       attachments,
+      preview,
 
       replyToMessageId: message.replyToMessageId ?? null,
 
@@ -194,6 +206,27 @@ const onSendMessage = async ({
     if (!hasFiles) {
       emitNewMessages(receiverParticipant.userId, createdMessage);
       emitNewMessages(currentUserId, createdMessage);
+    }
+
+    const URL_REGEX = /(https?:\/\/[^\s]+)/g;
+    const match = content.match(URL_REGEX);
+
+    if (match && match.length === 1 && messageType === "text" && !hasFiles && !hasGif) {
+      const url = match[0];
+
+      linkPreviewQueue.add(
+        "get-link-preview",
+        {
+          messageId,
+          url,
+          currentUserId,
+          ortherUserId: receiverParticipant.userId,
+        },
+        {
+          attempts: 3,
+          backoff: { delay: 1000, type: "exponential" },
+        },
+      );
     }
 
     if (hasFiles) {
@@ -263,12 +296,10 @@ const onSendMessage = async ({
 
     return createdMessage;
   } catch (error) {
-    //Xử lý message gửi lỗi
-    console.log("lõi: ", error);
-
     console.log("Error occurred while sending message:", message);
-
-    await session.abortTransaction();
+    if (session.inTransaction()) {
+      await session.abortTransaction();
+    }
     throw error;
   } finally {
     await session.endSession();
@@ -544,6 +575,7 @@ const onForwardMessageSingle = async ({ messageId, targetUserId, senderId, conve
       content: message.content,
       gifUrl: message.gifUrl,
       attachments: clonedAttachments,
+      preview: message.preview || null,
       replyToMessageId: null,
       isEdited: false,
       isRevoked: false,
@@ -587,6 +619,34 @@ const onForwardMessageSingle = async ({ messageId, targetUserId, senderId, conve
 
     await session.commitTransaction();
 
+    const URL_REGEX = /(https?:\/\/[^\s]+)/g;
+    const match = messageCreated.content ? messageCreated.content.match(URL_REGEX) : null;
+
+    if (
+      !messageCreated.preview &&
+      match &&
+      match.length === 1 &&
+      messageCreated.type === "text" &&
+      !messageCreated.attachments &&
+      !messageCreated.gifUrl
+    ) {
+      const url = match[0];
+
+      linkPreviewQueue.add(
+        "get-link-preview",
+        {
+          messageId: newMsgId,
+          url,
+          currentUserId: senderId,
+          ortherUserId: targetUserId,
+        },
+        {
+          attempts: 3,
+          backoff: { delay: 1000, type: "exponential" },
+        },
+      );
+    }
+
     emitNewMessages(targetUserId, createdMessage);
     emitNewMessages(senderId, createdMessage);
 
@@ -602,11 +662,6 @@ const onForwardMessageSingle = async ({ messageId, targetUserId, senderId, conve
 const onForwardMessage = async ({ selectedIds, messageId, senderId }) => {
   try {
     if (!selectedIds || !messageId || !senderId) return;
-
-    console.log("🚀 ~ chat.service.js:608 ~ onForwardMessage ~ senderId:", senderId);
-    console.log("🚀 ~ chat.service.js:608 ~ onForwardMessage ~ messageId:", messageId);
-    console.log("🚀 ~ chat.service.js:608 ~ onForwardMessage ~ selectedIds:", selectedIds);
-
 
     const messageQueues = await Promise.allSettled(
       selectedIds.map(async (selectedId) => {

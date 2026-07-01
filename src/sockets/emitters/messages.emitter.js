@@ -31,3 +31,7 @@ export const emitDeleteMessage = (receiverId, payload) => {
 export const emitRevokeMessage = (receiverId, payload) => {
   emitToUser(receiverId, "messages:revoke", payload);
 };
+
+export const emitUpdateLinkPreview = (receiverId, payload) => {
+  emitToUser(receiverId, "messages:updateLinkPreview", payload);
+};
