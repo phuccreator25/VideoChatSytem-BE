@@ -14,7 +14,13 @@ const server = http.createServer(app);
 
 const io = new Server(server, {
   cors: {
-    origin: env.HOST_NAME || "http://localhost:5173",
+    origin: [
+      'http://localhost:5173',
+      'http://127.0.0.1:5173',
+      'http://localhost:30080',
+      'http://127.0.0.1:30080',
+      'https://videochatsystem-fe.vercel.app'
+    ],
     credentials: true,
   },
   transports: ["websocket"],

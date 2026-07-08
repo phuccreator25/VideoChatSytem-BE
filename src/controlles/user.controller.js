@@ -86,14 +86,14 @@ const onLogOut = async (req, res, next) => {
 
     res.clearCookie("accessToken", {
       httpOnly: true,
-      secure: isProduction,
-      sameSite: "strict",
+      secure: true,
+      sameSite: "none",
     });
 
     res.clearCookie("refreshToken", {
       httpOnly: true,
-      secure: isProduction,
-      sameSite: "strict",
+      secure: true,
+      sameSite: "none",
     });
 
     return res.status(200).json({
@@ -104,14 +104,14 @@ const onLogOut = async (req, res, next) => {
 
     res.clearCookie("accessToken", {
       httpOnly: true,
-      secure: isProduction,
-      sameSite: "strict",
+      secure: true,
+      sameSite: "none",
     });
 
     res.clearCookie("refreshToken", {
       httpOnly: true,
-      secure: isProduction,
-      sameSite: "strict",
+      secure: true,
+      sameSite: "none",
     });
 
     return res.status(200).json({
@@ -171,14 +171,14 @@ const onRefreshToken = async (req, res, next) => {
 
     res.cookie("accessToken", result.token, {
       httpOnly: true,
-      secure: isProduction,
-      sameSite: "strict",
+      secure: true,
+      sameSite: "none",
     });
 
     res.cookie("refreshToken", result.refreshToken, {
       httpOnly: true,
-      secure: isProduction,
-      sameSite: "strict",
+      secure: true,
+      sameSite: "none",
     });
 
     return res.status(200).json({
