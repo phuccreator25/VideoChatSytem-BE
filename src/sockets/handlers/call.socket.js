@@ -38,6 +38,7 @@ export const registerCallSocket = (io, socket) => {
                     calleeId,
                     type,
                     callId: result.insertedId.toString(),
+                    conversationId,
                     callerInfo
                 });
             }
