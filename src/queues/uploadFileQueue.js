@@ -27,12 +27,14 @@ import env from "../config/env.js";
 
 // Lấy chuỗi kết nối tổng hợp từ biến môi trường (Ví dụ trên Render)
 // Nếu không có, mặc định quay về cấu hình localhost
-const REDIS_URL = process.env.REDIS_URL || `redis://${env.REDIS_HOST || '127.0.0.1'}:${Number(env.REDIS_PORT) || 6379}`;
+const REDIS_URI = env.REDIS_URI;
 
-export const redisConnection = new IORedis(REDIS_URL, {
+console.log(REDIS_URI);
+
+export const redisConnection = new IORedis(REDIS_URI, {
   maxRetriesPerRequest: null,
   // Thêm cấu hình này nếu Upstash yêu cầu kết nối bảo mật TLS (thường các gói Cloud cần)
-  tls: REDIS_URL.startsWith("rediss://") ? {} : undefined
+  tls: REDIS_URI.startsWith("rediss://") ? {} : undefined
 });
 
 const defaultQueueOptions = {

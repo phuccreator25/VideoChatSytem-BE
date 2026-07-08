@@ -31,7 +31,7 @@ const env = {
 
   REDIS_HOST: process.env.REDIS_HOST || 'redis://localhost:6379',
   REDIS_PORT: process.env.REDIS_PORT || 6379,
-  REDIS_URL: 'rediss://default:gQAAAAAAAW5mAAIgcDE2NDUzN2I5YTQ1MTk0YjhhYTk4MjI5MDc1MGMwMzlkZQ@working-mustang-93798.upstash.io:6379',
+  REDIS_URI: 'rediss://default:gQAAAAAAAW5mAAIgcDE2NDUzN2I5YTQ1MTk0YjhhYTk4MjI5MDc1MGMwMzlkZQ@working-mustang-93798.upstash.io:6379',
 
   STATIC_AUTH_SECRET: process.env.STATIC_AUTH_SECRET,
   STUN_SERVICE: process.env.STUN_SERVICE,
