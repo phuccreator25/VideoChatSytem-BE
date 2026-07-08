@@ -1,8 +1,10 @@
 import { MongoClient } from "mongodb";
-import dotenv from 'dotenv';
 import env from "./env.js";
 import dns from "node:dns/promises";
-dns.setServers(["1.1.1.1"]);
+
+if (process.env.NODE_ENV !== "production") {
+  dns.setServers(["1.1.1.1"]);
+}
 
 const url = env.MONGODB_URI
 
