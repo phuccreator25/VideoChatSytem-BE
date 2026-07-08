@@ -51,14 +51,18 @@ const onLogin = async (req, res, next) => {
 
     res.cookie("accessToken", dataLogin.token, {
       httpOnly: true,
-      secure: isProduction,
-      sameSite: "strict",
+      // secure: isProduction,
+      // sameSite: "strict",
+      secure: true,
+      sameSite: "none",
     });
 
     res.cookie("refreshToken", dataLogin.refreshToken, {
       httpOnly: true,
-      secure: isProduction,
-      sameSite: "strict",
+      // secure: isProduction,
+      // sameSite: "strict",
+      secure: true,
+      sameSite: "none",
     });
 
     return res.status(200).json({
@@ -138,7 +142,7 @@ const onResetPassword = async (req, res, next) => {
     };
 
     const result = await USER_SERVICE.onResetPassword(data);
-    
+
     return res.status(200).json({
       message: "Đổi mật khẩu thành công",
       data: {
@@ -223,7 +227,7 @@ const onUpdateAvatar = async (req, res, next) => {
 
     const user = await USER_SERVICE.onUpdateUser({
       _id: req.user.id,
-      payload: {file: req.file}
+      payload: { file: req.file }
     });
 
     return res.status(200).json({
@@ -234,10 +238,10 @@ const onUpdateAvatar = async (req, res, next) => {
   }
 }
 
-const onSearchUser = async(req, res, next) => {
+const onSearchUser = async (req, res, next) => {
   try {
-    const  keyword = req.params.searchValue;
-    
+    const keyword = req.params.searchValue;
+
     const users = await USER_SERVICE.onSearchUser({
       keyword: keyword,
       currentUserId: req.user.id

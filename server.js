@@ -14,6 +14,7 @@ import { app, server } from './src/sockets/socket.js'
 import chatRouter from './src/routes/chat.route.js'
 import { USER_REPOSITORY } from './src/repository/user.repository.js'
 import callRouter from './src/routes/call.route.js'
+import env from './src/config/env.js'
 
 dotenv.config()
 
@@ -73,7 +74,7 @@ const SERVER = async () => {
     console.error('Failed worker:', error)
   }
 
-  const Port = Number(process.env.PORT) || 5000 || 8080
+  const Port = Number(env.PORT) || 5000 || 8080
 
   server.listen(Port, () => {
     console.log(`Server is running on port ${Port}`)
