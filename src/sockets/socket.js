@@ -17,6 +17,7 @@ const io = new Server(server, {
     origin: env.HOST_NAME || "http://localhost:5173",
     credentials: true,
   },
+  transports: ["websocket"],
 });
 
 io.use(socketMiddleware);
