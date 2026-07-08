@@ -215,6 +215,62 @@ const deleteOne = async ({ ownerId, contactUserId }, session = null) => {
     }, session);
 };
 
+const findContactDetails = async (ownerId, targetUserId) => {
+  const result = await GET_DB()
+    .collection(USER_MODEL.COLECTION_USER_NAME)
+    .aggregate([
+      {
+        $match: {
+          $expr: {
+            $eq: ["$_id", { $toObjectId: targetUserId }]
+          }
+        }
+      },
+      {
+        $lookup: {
+          from: CONTACT_MODEL.COLLECTION_CONTACT_NAME,
+          let: { friendUserId: { $toString: "$_id" } },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $and: [
+                    { $eq: ["$ownerId", ownerId] },
+                    { $eq: ["$contactUserId", "$$friendUserId"] }
+                  ]
+                }
+              }
+            },
+            {
+              $project: {
+                nickname: 1
+              }
+            }
+          ],
+          as: "contactInfo"
+        }
+      },
+      {
+        $unwind: {
+          path: "$contactInfo",
+          preserveNullAndEmptyArrays: true
+        }
+      },
+      {
+        $project: {
+          _id: 0,
+          userId: { $toString: "$_id" },
+          fullname: "$fullname",
+          avatar: "$avatar",
+          nickname: { $ifNull: ["$contactInfo.nickname", null] },
+          email: "$email"
+        }
+      }
+    ])
+    .toArray();
+  return result[0] || null;
+};
+
 export const CONTACTS_REPOSITORY = {
   createOne,
   findByUserId,
@@ -222,5 +278,6 @@ export const CONTACTS_REPOSITORY = {
   findMany,
   updateOne,
   deleteOne,
-  findUserOnline
+  findUserOnline,
+  findContactDetails
 };

@@ -5,6 +5,7 @@ import env from "../config/env.js";
 import { socketMiddleware } from "../middleware/socketMiddleware.js";
 import { registerAuthSocket } from "./handlers/auth.socket.js";
 import { registerMessageSocket, registerTypingMessageSocket } from "./handlers/messages.socket.js";
+import { registerCallSocket } from "./handlers/call.socket.js";
 
 const app = express();
 app.use(express.json());
@@ -28,6 +29,7 @@ io.on("connection", async (socket) => {
   await registerAuthSocket(io, socket);
   registerMessageSocket(io, socket);
   registerTypingMessageSocket(io, socket);
+  registerCallSocket(io, socket);
 });
 
 export { io, app, server };
