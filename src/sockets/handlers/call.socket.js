@@ -1,9 +1,10 @@
+import { ObjectId } from "mongodb";
+import { CALL_REPOSITORY } from "../../repository/call.repository.js";
 import { CONTACTS_REPOSITORY } from "../../repository/contacts.repository.js";
 import { CONVERSATION_PARTICIPANT_REPOSITORY } from "../../repository/conversationParticipant.repository.js";
-import { USER_REPOSITORY } from "../../repository/user.repository.js";
 import { CALL_SERVICE } from "../../service/call.service.js";
-import { emitCallAnswer, emitCallCandidate, emitCallInitiated, emitCallOffer } from "../emitters/call.emiter.js";
-import { emitToUser, isUserOnline } from "../socketStore.js";
+import { emitCallAnswer, emitCallCandidate, emitCallCloseAudio, emitCallInitiated, emitCallOffer, emitCloseVideoCall } from "../emitters/call.emiter.js";
+import { isUserOnline } from "../socketStore.js";
 
 export const registerCallSocket = (io, socket) => {
     socket.on("call:offer", async (data) => {
@@ -72,7 +73,6 @@ export const registerCallSocket = (io, socket) => {
                 conversationId,
             });
 
-
         } catch (error) {
             console.error("call:answer error:", error);
 
@@ -114,4 +114,58 @@ export const registerCallSocket = (io, socket) => {
             });
         }
     });
+
+    socket.on('call:close-video', async (data) => {
+        try {
+            const { callId, currentUserId } = data;
+
+            if (!callId || !currentUserId) return;
+
+            const call = await CALL_REPOSITORY.findOne({
+                _id: new ObjectId(callId)
+            });
+
+            if (!call) return;
+
+            const otherUserId = call.participants.find((p) => p.userId !== currentUserId);
+
+            emitCloseVideoCall(otherUserId.userId, {
+                callId,
+                userIdWhoClose: currentUserId,
+            });
+        } catch (error) {
+            console.error("call:close-video error:", error);
+
+            socket.emit('call:close-video:error', {
+                message: error.message || "Close video call failed",
+            });
+        }
+    })
+
+    socket.on('call:close-audio', async (data) => {
+        try {
+            const { callId, currentUserId } = data;
+
+            if (!callId || !currentUserId) return;
+
+            const call = await CALL_REPOSITORY.findOne({
+                _id: new ObjectId(callId)
+            });
+
+            if (!call) return;
+
+            const otherUserId = call.participants.find((p) => p.userId !== currentUserId);
+
+            emitCallCloseAudio(otherUserId.userId, {
+                callId,
+                userIdWhoClose: currentUserId,
+            });
+        } catch (error) {
+            console.error("call:close-audio error:", error);
+
+            socket.emit('call:close-audio:error', {
+                message: error.message || "Close audio call failed",
+            });
+        }
+    })
 }; 

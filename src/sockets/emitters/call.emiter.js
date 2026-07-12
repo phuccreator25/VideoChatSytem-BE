@@ -28,3 +28,10 @@ export const emitAcceptCall = (receivedId, payload) => {
     emitToUser(receivedId, "call:accept", payload);
 }
 
+export const emitCloseVideoCall = (receivedId, payload) => {
+    emitToUser(receivedId, "call:close-video", payload);
+}
+
+export const emitCallCloseAudio = (receivedId, payload) => {
+    emitToUser(receivedId, "call:close-audio", payload);
+}

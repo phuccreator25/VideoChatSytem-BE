@@ -4,7 +4,7 @@ import { CALL_REPOSITORY } from '../repository/call.repository.js';
 import { callStatuses, callTypes, participantRoles, participantStatuses } from '../data/call.data.js';
 import { status } from '../data/user.data.js';
 import { ObjectId } from 'mongodb';
-import { emitAcceptCall, emitCallEnd } from '../sockets/emitters/call.emiter.js';
+import { emitAcceptCall, emitCallEnd, emitRejectCall } from '../sockets/emitters/call.emiter.js';
 
 const onGetTurnCredentials = () => {
     // 1. Lấy cấu hình từ file .env hoặc fallback về local nếu chưa khai báo
@@ -82,6 +82,10 @@ const onMakeCall = async ({ data }) => {
 
 //XỬ LÝ TIẾP ENDCALL 
 const onEndCall = async ({ callId, currentUserId }) => {
+    if (!callId || typeof callId !== 'string' || !/^[0-9a-fA-F]{24}$/.test(callId)) {
+        throw new Error(`Invalid callId: ${JSON.stringify(callId)}. Must be a 24-character hex string.`);
+    }
+
     const call = await CALL_REPOSITORY.findOne({
         _id: new ObjectId(callId)
     });
@@ -92,7 +96,7 @@ const onEndCall = async ({ callId, currentUserId }) => {
         throw new Error("Call is not active or already ended")
     }
 
-    // 1. Tìm participant hiện tại thực hiện hành động cúp máy/từ chối
+    // 1. Tìm participant hiện tại thực hiện hành động cúp máy
     const currentParticipant = call.participants.find(
         (participant) => participant.userId.toString() === currentUserId.toString()
     );
@@ -140,6 +144,10 @@ const onEndCall = async ({ callId, currentUserId }) => {
             if (p.joinStatus === participantStatuses.ACCEPTED && p.leftAt === null) {
                 p.leftAt = new Date();
             }
+            // Cực kỳ nên thêm dòng này:
+            if (p.joinStatus === participantStatuses.PENDING) {
+                p.joinStatus = participantStatuses.MISSED; // Hoặc CANCELLED tùy bạn định nghĩa
+            }
         });
     }
 
@@ -157,21 +165,39 @@ const onEndCall = async ({ callId, currentUserId }) => {
 
     const finalCallData = await CALL_REPOSITORY.findOne({ _id: new ObjectId(callId) });
 
+    // Xác định lý do cuộc gọi kết thúc (ended: cúp máy bình thường, rejected: bị từ chối, cancelled: người gọi tự hủy)
+    let reason = 'ended';
+    if (call.status === callStatuses.RINGING) {
+        const callerParticipant = call.participants.find(p => p.role === participantRoles.CALLER);
+        const isCallerEnd = callerParticipant && callerParticipant.userId.toString() === currentUserId.toString();
+        
+        if (isCallerEnd) {
+            reason = 'cancelled';
+        } else {
+            reason = 'rejected';
+        }
+    }
+
     // 6. Phát sự kiện socket cho tất cả các bên tham gia để đồng bộ UI
     call.participants.forEach((participant) => {
         emitCallEnd(participant.userId, {
             callId: callId,
             userIdWhoLeft: currentUserId,
             shouldCloseUI: shouldCloseUI,
-            updatedCall: finalCallData
+            updatedCall: finalCallData,
+            reason: reason
         });
     });
 
-    return updatedCall;
+    return finalCallData;
 }
 
 const onAcceptCall = async ({ callId, currentUserId }) => {
     try {
+        if (!callId || typeof callId !== 'string' || !/^[0-9a-fA-F]{24}$/.test(callId)) {
+            throw new Error(`Invalid callId: ${JSON.stringify(callId)}. Must be a 24-character hex string.`);
+        }
+
         const call = await CALL_REPOSITORY.findOne({
             _id: new ObjectId(callId)
         });
@@ -208,6 +234,8 @@ const onAcceptCall = async ({ callId, currentUserId }) => {
         const finalCallData = await CALL_REPOSITORY.findOne({ _id: new ObjectId(callId) });
 
         // 6. Phát sự kiện socket cho tất cả các bên tham gia để đồng bộ UI
+        //TỚI ĐÂY TIẾN HÀNH CẬP NHÂTHJ UI KHI ĐÃ ACCREPT CUỘC GỌI
+        //SAU ĐÓ BỔ SUNG EMIT SOCKET Ở FE ĐỂ KHI ĐỐI PHƯƠNG BÂTHJ TẮT VIDEO HAY AUDIO THÌ NGƯỜI CÒN LẠI SẼ UPDATE UI CUIAR HỌ
         call.participants.forEach((participant) => {
             emitAcceptCall(participant.userId, {
                 callId: callId,
@@ -216,11 +244,12 @@ const onAcceptCall = async ({ callId, currentUserId }) => {
             });
         });
 
-        return updatedCall;
+        return finalCallData;
     } catch (error) {
         throw error
     }
 }
+
 
 export const CALL_SERVICE = {
     onGetTurnCredentials,
