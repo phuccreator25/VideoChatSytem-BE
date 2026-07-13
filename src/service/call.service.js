@@ -1,10 +1,8 @@
-import crypto from 'crypto';
-import env from '../config/env.js';
 import { CALL_REPOSITORY } from '../repository/call.repository.js';
-import { callStatuses, callTypes, participantRoles, participantStatuses } from '../data/call.data.js';
-import { status } from '../data/user.data.js';
+import { callStatuses, participantRoles, participantStatuses } from '../data/call.data.js';
 import { ObjectId } from 'mongodb';
-import { emitAcceptCall, emitCallEnd, emitRejectCall } from '../sockets/emitters/call.emiter.js';
+import { emitAcceptCall, emitCallEnd } from '../sockets/emitters/call.emiter.js';
+import axios from 'axios'
 
 export const onGetTurnCredentials = async () => {
     try {
