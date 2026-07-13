@@ -11,6 +11,10 @@ export const onGetTurnCredentials = async () => {
         // Gọi API của Metered để lấy danh sách iceServers xịn, đã được xác thực sẵn
         const response = await axios.get("https://nguyentruongphuc.metered.live/api/v1/turn/credentials?apiKey=c899fd119eb94b17b7a94ea8525dd5be2946");
 
+        console.log("response from metered: ", response);
+        console.log("response data from metered: ", response.data);
+
+
         return {
             success: true,
             // Kết quả trả về của Metered là một mảng iceServers chứa sẵn username/credential hợp lệ
