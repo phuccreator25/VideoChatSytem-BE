@@ -6,41 +6,24 @@ import { status } from '../data/user.data.js';
 import { ObjectId } from 'mongodb';
 import { emitAcceptCall, emitCallEnd, emitRejectCall } from '../sockets/emitters/call.emiter.js';
 
-const onGetTurnCredentials = () => {
-    // 1. Lấy cấu hình từ file .env hoặc fallback về local nếu chưa khai báo
-    const authSecret = env.STATIC_AUTH_SECRET;
-    const stunUrl = env.STUN_SERVICE;
-    const turnUrl = env.TURN_SERVICE;
+export const onGetTurnCredentials = async () => {
+    try {
+        // Gọi API của Metered để lấy danh sách iceServers xịn, đã được xác thực sẵn
+        const response = await axios.get("https://nguyentruongphuc.metered.live/api/v1/turn/credentials?apiKey=c899fd119eb94b17b7a94ea8525dd5be2946");
 
-    // 2. Thiết lập thời gian hết hạn cho Token (24 giờ)
-    const ttlInSeconds = 24 * 3600;
-    const unixTimeStamp = Math.floor(Date.now() / 1000) + ttlInSeconds;
-
-    // 3. Username định dạng chuẩn của Coturn
-    const username = `${unixTimeStamp}:debugdepot_user`;
-
-    // 4. Tạo password bằng cách hash username với mã Secret Key bằng HMAC-SHA1
-    const password = crypto
-        .createHmac('sha1', authSecret)
-        .update(username)
-        .digest('base64');
-
-    // 5. TRẢ VỀ ĐÚNG ĐỊNH DẠNG MẢNG ICE SERVERS MÀ CONTROLLER CẦN
-    return {
-        success: true,
-        iceServers: [
-            // Luồng ưu tiên 1: STUN phục vụ kết nối trực tiếp P2P
-            {
-                urls: stunUrl
-            },
-            // Luồng dự phòng 2: TURN đi kèm tài khoản động vừa tạo để vượt NAT
-            {
-                urls: turnUrl,
-                username: username,
-                credential: password
-            }
-        ]
-    };
+        return {
+            success: true,
+            // Kết quả trả về của Metered là một mảng iceServers chứa sẵn username/credential hợp lệ
+            iceServers: response.data
+        };
+    } catch (error) {
+        console.error("Lỗi khi lấy thông tin TURN từ Metered:", error);
+        // Fallback về STUN miễn phí để tránh crash app
+        return {
+            success: true,
+            iceServers: [{ urls: "stun:stun.l.google.com:19302" }]
+        };
+    }
 };
 
 const onMakeCall = async ({ data }) => {
@@ -170,7 +153,7 @@ const onEndCall = async ({ callId, currentUserId }) => {
     if (call.status === callStatuses.RINGING) {
         const callerParticipant = call.participants.find(p => p.role === participantRoles.CALLER);
         const isCallerEnd = callerParticipant && callerParticipant.userId.toString() === currentUserId.toString();
-        
+
         if (isCallerEnd) {
             reason = 'cancelled';
         } else {
