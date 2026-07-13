@@ -1,8 +1,8 @@
 import { CALL_SERVICE } from "../service/call.service.js";
 
-const onGetTurnCredentials = (req, res, next) => {
+const onGetTurnCredentials = async (req, res, next) => {
     try {
-        const turnCredentials = CALL_SERVICE.onGetTurnCredentials()
+        const turnCredentials = await CALL_SERVICE.onGetTurnCredentials()
 
         return res.status(200).json({
             data: turnCredentials
