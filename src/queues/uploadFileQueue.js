@@ -21,7 +21,7 @@
 // export const linkPreviewQueue = new Queue("link-preview-queue", defaultQueueOptions);
 
 //VERCAL 
-import { Queue } from "bullmq";
+import { Queue, QueueEvents } from "bullmq";
 import IORedis from "ioredis";
 import env from "../config/env.js";
 
@@ -48,4 +48,6 @@ const defaultQueueOptions = {
 export const fileUploadQueue = new Queue("file-upload-queue", defaultQueueOptions);
 export const shareMessageQueue = new Queue("share-message-queue", defaultQueueOptions);
 export const linkPreviewQueue = new Queue("link-preview-queue", defaultQueueOptions);
+export const sendMessageQueue = new Queue("send-message-queue", defaultQueueOptions);
+export const sendMessageQueueEvents = new QueueEvents("send-message-queue", { connection: redisConnection });
 //TIEEPS TỤC ĐƯA LÊN RENDER TEST VIDEOCALL

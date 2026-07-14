@@ -12,10 +12,32 @@ import {
   emitUnReactEmotion,
   emitRevokeMessage,
 } from "../sockets/emitters/messages.emitter.js";
-import { fileUploadQueue, shareMessageQueue, linkPreviewQueue } from "../queues/uploadFileQueue.js";
+import { fileUploadQueue, shareMessageQueue, linkPreviewQueue, sendMessageQueue, sendMessageQueueEvents } from "../queues/uploadFileQueue.js";
 import { MESSAGE_REACTION_REPOSITORY } from "../repository/messageReaction.repository.js";
 
 const onSendMessage = async ({
+  message,
+  files,
+  conversationId,
+  currentUserId,
+}) => {
+  try {
+    const job = await sendMessageQueue.add("send-message", {
+      message,
+      files,
+      conversationId,
+      currentUserId,
+    });
+
+    const result = await job.waitUntilFinished(sendMessageQueueEvents);
+    return result;
+  } catch (error) {
+    console.error("Error adding send message job to queue:", error);
+    throw error;
+  }
+};
+
+const processSendMessage = async ({
   message,
   files,
   conversationId,
@@ -954,6 +976,7 @@ const onGetLinkPreview = async ({ url }) => {
 
 export const CHAT_SERVICE = {
   onSendMessage,
+  processSendMessage,
   markConversationAsRead,
   onReactEmotion,
   onUnReactEmotion,

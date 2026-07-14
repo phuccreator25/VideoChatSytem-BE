@@ -10,6 +10,7 @@ const startWorkers = async () => {
     await import("./uploadFileWorker.js");
     await import("./shareMessageWorker.js");
     await import("./getLinkPeviewWorker.js");
+    await import("./sendMessageWorker.js");
 
     console.log("BullMQ workers started");
   } catch (error) {

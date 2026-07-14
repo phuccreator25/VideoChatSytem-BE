@@ -69,6 +69,7 @@ const SERVER = async () => {
     await import('./src/workers/uploadFileWorker.js')
     await import('./src/workers/shareMessageWorker.js')
     await import('./src/workers/getLinkPeviewWorker.js')
+    await import('./src/workers/sendMessageWorker.js')
     console.log('Worker run successfully')
   } catch (error) {
     console.error('Failed worker:', error)
