@@ -28,5 +28,7 @@ export const getLinkPeviewWorker = new Worker(
     {
         connection: redisConnection,
         concurrency: 3,
+        stalledInterval: 300000,
+        drainDelay: 60,
     }
 );

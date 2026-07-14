@@ -134,6 +134,8 @@ export const fileUploadWorker = new Worker(
   {
     connection: redisConnection,
     concurrency: 3,
+    stalledInterval: 300000, // Check for stalled jobs every 5 minutes (reduces Upstash requests)
+    drainDelay: 60,          // Wait 60 seconds when queue is empty before polling again
   },
 );
 

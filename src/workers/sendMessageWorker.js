@@ -24,6 +24,8 @@ export const sendMessageWorker = new Worker(
   {
     connection: redisConnection,
     concurrency: 1, // Concurrency 1 guarantees sequential execution to avoid MongoDB write conflicts on conversation updates
+    stalledInterval: 300000, // Check for stalled jobs every 5 minutes (reduces Upstash requests)
+    drainDelay: 60,          // Wait 60 seconds when queue is empty before polling again
   }
 );
 
