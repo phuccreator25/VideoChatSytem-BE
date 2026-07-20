@@ -113,6 +113,23 @@ const previewByMessage = (message) => {
     return "This message has been revoked";
   }
 
+  if (message.messageType === "call" || message.type === "call" || message.callInfo) {
+    const callInfo = message.callInfo || {};
+    const isVideo = callInfo.callType === "video";
+    const status = (callInfo.status || "").toLowerCase();
+
+    if (status === "missed") {
+      return isVideo ? "Missed video call" : "Missed voice call";
+    }
+    if (status === "rejected") {
+      return isVideo ? "Video call declined" : "Voice call declined";
+    }
+    if (status === "cancelled") {
+      return isVideo ? "Cancelled video call" : "Cancelled voice call";
+    }
+    return isVideo ? "Video call" : "Voice call";
+  }
+
   if (message.type === "text") {
     const content = message.content?.trim?.();
 
@@ -331,6 +348,8 @@ const findListByUserId = async (currentUserId) => {
               $project: {
                 _id: 1,
                 type: 1,
+                messageType: 1,
+                callInfo: 1,
                 content: 1,
                 createdAt: 1,
                 attachments: 1,

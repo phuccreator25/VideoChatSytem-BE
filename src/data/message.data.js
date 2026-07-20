@@ -1,8 +1,10 @@
 export const messageTypes = {
   TEXT: "text",
   FILE: "file",
-  GIF: 'gif'
+  GIF: "gif",
+  CALL: "call"
 };
+
 
 export const EMOTIONS = [
   "LOVE",

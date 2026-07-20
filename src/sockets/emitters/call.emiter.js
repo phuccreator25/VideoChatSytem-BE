@@ -28,10 +28,19 @@ export const emitAcceptCall = (receivedId, payload) => {
     emitToUser(receivedId, "call:accept", payload);
 }
 
-export const emitCloseVideoCall = (receivedId, payload) => {
-    emitToUser(receivedId, "call:close-video", payload);
+export const emitCallOffline = (receivedId, payload) => {
+    emitToUser(receivedId, "call:offline", payload);
 }
 
-export const emitCallCloseAudio = (receivedId, payload) => {
-    emitToUser(receivedId, "call:close-audio", payload);
+export const emitCallRinging = (receivedId, payload) => {
+    emitToUser(receivedId, "call:ringing", payload);
 }
+
+export const emitCallToggleMedia = (receivedId, payload) => {
+    emitToUser(receivedId, "call:toggle-media", payload);
+}
+
+export const emitCallToggleMediaError = (receivedId, payload) => {
+    emitToUser(receivedId, "call:toggle-media:error", payload);
+}
+

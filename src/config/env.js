@@ -29,9 +29,9 @@ const env = {
   ARCJET_KEY: process.env.ARCJET_KEY,
   ARCJET_ENV: process.env.ARCJETPORT,
 
-  REDIS_HOST: process.env.REDIS_HOST || 'redis://localhost:6379',
+  REDIS_HOST: process.env.REDIS_HOST || '127.0.0.1',
   REDIS_PORT: process.env.REDIS_PORT || 6379,
-  REDIS_URI: 'rediss://default:gQAAAAAAAW5mAAIgcDE2NDUzN2I5YTQ1MTk0YjhhYTk4MjI5MDc1MGMwMzlkZQ@working-mustang-93798.upstash.io:6379',
+  REDIS_URI: process.env.REDIS_URI || `redis://${process.env.REDIS_HOST || '127.0.0.1'}:${process.env.REDIS_PORT || 6379}`,
 }
 
 export default env

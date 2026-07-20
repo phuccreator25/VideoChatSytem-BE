@@ -9,6 +9,7 @@ export const callStatuses = {
     REJECTED: "rejected",
     ACTIVE: "active",
     MISSED: "missed",
+    CANCELLED: "cancelled",
 };
 
 export const participantRoles = {
