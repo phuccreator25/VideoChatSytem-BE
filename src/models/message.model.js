@@ -1,6 +1,6 @@
 import Joi from "joi";
 import { messageTypes } from "../data/message.data.js";
-import { callStatuses } from "../data/call.data.js";
+import { callStatuses, callTypes } from "../data/call.data.js";
 
 const COLLECTION_MESSAGE_NAME = "messages";
 
@@ -57,12 +57,12 @@ const COLLECTION_MESSAGE_SCHEMA = Joi.object({
     .allow(null)
     .default(null),
 
-  callInfo: {
+  callInfo: Joi.object({
     callId: Joi.string().trim().allow(null, "").default(null),
-    callType: Joi.string().valid("video", "audio").default("video"),
+    callType: Joi.string().valid(...Object.values(callTypes)).default("video"),
     status: Joi.string().valid(...Object.values(callStatuses)).default("completed"),
     duration: Joi.number().allow(null).default(null),
-  },
+  }).allow(null).default(null),
 
   replyToMessageId: Joi.string().trim().allow(null, "").default(null),
 

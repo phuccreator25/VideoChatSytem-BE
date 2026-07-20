@@ -9,6 +9,8 @@ import { addCallParticipants, isUserOnline, removePendingOffer, setPendingOffer,
 export const handleCallOffer = async (io, socket, data) => {
     try {
         const { conversationId, callerId, calleeId, offer, type } = data;
+        console.log('Type socker: ', type);
+
 
         if (!callerId || !calleeId || !offer || !conversationId || !type) {
             socket.emit("call:offer:error", {
