@@ -42,8 +42,40 @@ const onAcceptCall = async (req, res, next) => {
     }
 }
 
+const onSpeedToTextCall = async (req, res, next) => {
+    try {
+        const { callId, transcript } = req.body
+        const currentUserId = req.user.id
+
+        await CALL_SERVICE.onSpeedToTextCall({ callId, transcript, currentUserId })
+
+        return res.status(200).json({
+            data: true
+        })
+    } catch (error) {
+        next(error)
+    }
+}
+
+const onGenerateCallAISummary = async (req, res, next) => {
+    try {
+        const { callId } = req.body
+        const currentUserId = req.user.id
+
+        const call = await CALL_SERVICE.onGenerateCallAISummary({ callId, currentUserId })
+
+        return res.status(200).json({
+            data: call
+        })
+    } catch (error) {
+        next(error)
+    }
+}
+
 export const CALL_CONTROLLER = {
     onGetTurnCredentials,
     onEndCall,
-    onAcceptCall
+    onAcceptCall,
+    onSpeedToTextCall,
+    onGenerateCallAISummary
 }

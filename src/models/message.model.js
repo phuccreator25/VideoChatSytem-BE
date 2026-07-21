@@ -62,6 +62,15 @@ const COLLECTION_MESSAGE_SCHEMA = Joi.object({
     callType: Joi.string().valid(...Object.values(callTypes)).default("video"),
     status: Joi.string().valid(...Object.values(callStatuses)).default("completed"),
     duration: Joi.number().allow(null).default(null),
+
+    hasTranscript: Joi.boolean().default(false), // Đánh dấu cuộc gọi có ghi lại lời thoại hay không
+
+    aiSummary: Joi.object({
+      summary: Joi.string().allow(null, "").default(null),
+      keyPoints: Joi.array().items(Joi.string()).default([]),
+      actionItems: Joi.array().items(Joi.string()).default([]),
+      createdAt: Joi.date().default(() => new Date()),
+    }).allow(null).default(null),
   }).allow(null).default(null),
 
   replyToMessageId: Joi.string().trim().allow(null, "").default(null),

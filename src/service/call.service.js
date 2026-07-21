@@ -9,6 +9,8 @@ import { MESSAGE_REPOSITORY } from '../repository/message.repository.js';
 import { client } from '../config/database.js';
 import { emitNewMessages } from '../sockets/emitters/messages.emitter.js';
 import axios from 'axios';
+import env from '../config/env.js';
+import { GEMINI_SERVICE } from './AI/gemini.service.js';
 
 const onGetTurnCredentials = async () => {
     try {
@@ -91,7 +93,6 @@ const onEndCall = async ({ callId, currentUserId, reason = null }) => {
         }
 
         const call = await CALL_REPOSITORY.findOne({ _id: new ObjectId(callId) });
-        console.log('Call Info: ', call);
 
         if (!call) { throw new Error("Call not found"); }
 
@@ -162,6 +163,7 @@ const onEndCall = async ({ callId, currentUserId, reason = null }) => {
         }, session);
 
         let createdCallMessage = null;
+        const hasTranscript = Array.isArray(call.transcript) && call.transcript.length > 0;
 
         // Ghi MESSAGE & DELIVERY KHI CUỘC GỌI HOÀN TOÀN KẾT THÚC (shouldCloseUI = true)
         if (shouldCloseUI) {
@@ -203,6 +205,7 @@ const onEndCall = async ({ callId, currentUserId, reason = null }) => {
                     callType: call.type,
                     status: callLogStatus,
                     duration: durationSec,
+                    hasTranscript: hasTranscript,
                 },
                 content: `${call.type === "video" ? "Video call" : "Voice call"} ${callLogStatus}`,
                 status: 'sent',
@@ -340,9 +343,132 @@ const onAcceptCall = async ({ callId, currentUserId }) => {
     }
 };
 
+const onSpeedToTextCall = async ({ callId, transcript, currentUserId }) => {
+    const session = client.startSession();
+    try {
+        if (!callId || typeof callId !== 'string' || !/^[0-9a-fA-F]{24}$/.test(callId)) {
+            throw new Error(`Invalid callId: ${JSON.stringify(callId)}. Must be a 24-character hex string.`);
+        }
+
+        const call = await CALL_REPOSITORY.findOne({
+            _id: new ObjectId(callId)
+        });
+
+        if (!call) {
+            throw new Error("Call not found");
+        }
+
+        const currentParticipant = call.participants.find(
+            (p) => p.userId.toString() === currentUserId.toString()
+        );
+
+        if (!currentParticipant) {
+            throw new Error("Current user is not a participant in this call");
+        }
+
+        if (!Array.isArray(transcript) || transcript.length === 0) {
+            return call.transcript || [];
+        }
+
+        await session.startTransaction();
+
+        const updateOperation = Array.isArray(call.transcript)
+            ? {
+                $push: { transcript: { $each: transcript } },
+                $set: { updatedAt: new Date() }
+            }
+            : {
+                $set: { transcript: transcript, updatedAt: new Date() }
+            };
+
+        await CALL_REPOSITORY.updateOne({
+            _id: new ObjectId(callId)
+        }, updateOperation, session);
+
+        await MESSAGE_REPOSITORY.updateOne({
+            'callInfo.callId': callId
+        }, {
+            $set: {
+                'callInfo.hasTranscript': true
+            }
+        }, session);
+
+        await session.commitTransaction();
+
+        return true;
+    } catch (error) {
+        if (session && session.inTransaction()) {
+            await session.abortTransaction();
+        }
+        console.error("Lỗi trong onSpeedToTextCall:", error);
+        throw error;
+    } finally {
+        if (session) {
+            await session.endSession();
+        }
+    }
+}
+
+const onGenerateCallAISummary = async ({ callId }) => {
+    const session = client.startSession();
+
+    try {
+        if (!callId || typeof callId !== 'string' || !/^[0-9a-fA-F]{24}$/.test(callId)) {
+            throw new Error(`Invalid callId: ${JSON.stringify(callId)}. Must be a 24-character hex string.`);
+        }
+
+        const call = await CALL_REPOSITORY.findOne({ _id: new ObjectId(callId) });
+        if (!call) {
+            throw new Error("Call not found");
+        }
+
+        if (!Array.isArray(call.transcript) || call.transcript.length === 0) {
+            throw new Error("Cuộc gọi chưa có dữ liệu hội thoại (transcript) để tóm tắt.");
+        }
+
+        // Gọi dịch vụ AI module hóa độc lập
+        const aiSummary = await GEMINI_SERVICE.generateCallSummary(call.transcript);
+
+        await session.startTransaction();
+        // Cập nhật DB song song bằng Promise.all để tối ưu tốc độ
+        await Promise.all([
+            MESSAGE_REPOSITORY.updateOne(
+                { 'callInfo.callId': callId },
+                { $set: { 'callInfo.aiSummary': aiSummary } },
+                session
+            ),
+            CALL_REPOSITORY.updateOne(
+                { _id: new ObjectId(callId) },
+                {
+                    $set: {
+                        aiSummary: aiSummary,
+                        updatedAt: new Date()
+                    }
+                },
+                session
+            )
+        ]);
+        await session.commitTransaction();
+        return aiSummary;
+
+    } catch (error) {
+        if (error?.response?.status === 429) {
+            throw new Error("Hệ thống Gemini AI đang tạm thời quá tải (Rate Limit). Vui lòng thử lại sau!");
+        }
+        console.error("Lỗi trong onGenerateCallAISummary:", error?.response?.data || error.message);
+        throw error;
+    } finally {
+        if (session) {
+            await session.endSession();
+        }
+    }
+};
+
 export const CALL_SERVICE = {
     onGetTurnCredentials,
     onMakeCall,
     onEndCall,
-    onAcceptCall
+    onAcceptCall,
+    onSpeedToTextCall,
+    onGenerateCallAISummary
 };

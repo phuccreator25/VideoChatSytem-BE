@@ -37,6 +37,17 @@ const COLLECTION_CALL_SCHEMA = Joi.object({
         .min(2)
         .required(),
 
+    transcript: Joi.array()
+        .items(
+            Joi.object({
+                speaker: Joi.string().required().trim(),
+                text: Joi.string().required().trim(),
+                timestamp: Joi.string().required().trim(),
+            })
+        )
+        .allow(null)
+        .default(null),
+
     createdAt: Joi.date().default(() => new Date()),
     updatedAt: Joi.date().allow(null).default(null),
 });

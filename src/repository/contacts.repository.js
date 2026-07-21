@@ -10,7 +10,7 @@ const createOne = async (payload, session = null) => {
 
   return await GET_DB()
     .collection(CONTACT_MODEL.COLLECTION_CONTACT_NAME)
-    .insertOne(dataValid, {session});
+    .insertOne(dataValid, { session });
 };
 
 const findByUserId = async (ownerId) => {
@@ -26,59 +26,9 @@ const findContactItem = async (ownerId, targetUserId, session = null) => {
     .findOne({
       ownerId,
       contactUserId: targetUserId,
-    }, {session});
+    }, { session });
 };
 
-const findUserOnline = async (filter) => {
-  const result = await GET_DB()
-    .collection(CONTACT_MODEL.COLLECTION_CONTACT_NAME)
-    .aggregate([
-      {
-        $match: {
-          ownerId: filter.userId, 
-        },
-      },
-      {
-        $lookup: {
-          from: USER_MODEL.COLECTION_USER_NAME,
-          let: { contactUserId: "$contactUserId" },
-          pipeline: [
-            {
-              $match: {
-                $expr: {
-                  $and: [
-                    { $eq: [{ $toString: "$_id" }, "$$contactUserId"] },
-                  ],
-                },
-              },
-            },
-            { $limit: 1 },
-          ],
-          as: "userOnlineInfo",
-        },
-      },
-      {
-        $match: {
-          "userOnlineInfo.0": { $exists: true },
-        },
-      },
-      {
-        $group: {
-          _id: null,
-          userIds: { $addToSet: "$contactUserId" },
-        },
-      },
-      {
-        $project: {
-          _id: 0,
-          userIds: 1,
-        },
-      },
-    ])
-    .toArray();
-
-  return result[0]?.userIds || [];
-};
 
 const findMany = async (currentUserId) => {
   const contacts = await GET_DB()
@@ -278,6 +228,5 @@ export const CONTACTS_REPOSITORY = {
   findMany,
   updateOne,
   deleteOne,
-  findUserOnline,
   findContactDetails
 };

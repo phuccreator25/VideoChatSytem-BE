@@ -119,18 +119,23 @@ const onRemoveContact = async ({ ownerId, friendId }) => {
 };
 
 const onGetContactOfUserOnline = async (userId) => {
-  const filter = {
-    userId,
-  };
+  const contacts = await CONTACTS_REPOSITORY.findMany(userId);
 
-  const contactIds = await CONTACTS_REPOSITORY.findUserOnline(filter);
+  const onlineContacts = contacts
+    .filter((contact) => isUserOnline(contact.userId) && !contact.isBlocked && contact.userId !== userId)
+    .map((contact) => ({
+      userId: contact.userId,
+      name: (contact.nickname && contact.nickname.trim())
+        ? contact.nickname
+        : contact.fullname,
+      avatar: contact.avatar,
+      isOnline: true
+    }));
 
-  const onlineContactIds = contactIds.filter((contactId) =>
-    isUserOnline(contactId)
-  );
-
-  return onlineContactIds;
+  return onlineContacts;
 };
+
+
 
 export const CONTACT_SERVICE = {
   onGetData,
