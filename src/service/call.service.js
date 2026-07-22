@@ -344,70 +344,57 @@ const onAcceptCall = async ({ callId, currentUserId }) => {
 };
 
 const onSpeedToTextCall = async ({ callId, transcript, currentUserId }) => {
-    const session = client.startSession();
     try {
         if (!callId || typeof callId !== 'string' || !/^[0-9a-fA-F]{24}$/.test(callId)) {
-            throw new Error(`Invalid callId: ${JSON.stringify(callId)}. Must be a 24-character hex string.`);
+            throw new Error(`Invalid callId: ${JSON.stringify(callId)}`);
         }
 
-        const call = await CALL_REPOSITORY.findOne({
-            _id: new ObjectId(callId)
-        });
+        if (!transcript) return false;
 
+        const transcriptArray = Array.isArray(transcript) ? transcript : [transcript];
+        if (transcriptArray.length === 0) return false;
+
+        const call = await CALL_REPOSITORY.findOne({ _id: new ObjectId(callId) });
         if (!call) {
-            throw new Error("Call not found");
+            throw new Error(`Không tìm thấy Cuộc gọi với ID: ${callId}`);
         }
 
-        const currentParticipant = call.participants.find(
-            (p) => p.userId.toString() === currentUserId.toString()
+        let updateOperation;
+
+        if (!Array.isArray(call.transcript)) {
+            updateOperation = {
+                $set: { 
+                    transcript: transcriptArray,
+                    updatedAt: new Date()
+                }
+            };
+        } else {
+            updateOperation = {
+                $push: { transcript: { $each: transcriptArray } },
+                $set: { updatedAt: new Date() }
+            };
+        }
+
+        const result = await CALL_REPOSITORY.updateOne(
+            { 
+                _id: new ObjectId(callId),
+                "participants.userId": currentUserId.toString() 
+            },
+            updateOperation
         );
 
-        if (!currentParticipant) {
-            throw new Error("Current user is not a participant in this call");
+        if (result.matchedCount === 0) {
+            throw new Error(`User ${currentUserId} không phải là participant trong cuộc gọi ${callId}`);
         }
 
-        if (!Array.isArray(transcript) || transcript.length === 0) {
-            return call.transcript || [];
-        }
-
-        await session.startTransaction();
-
-        const updateOperation = Array.isArray(call.transcript)
-            ? {
-                $push: { transcript: { $each: transcript } },
-                $set: { updatedAt: new Date() }
-            }
-            : {
-                $set: { transcript: transcript, updatedAt: new Date() }
-            };
-
-        await CALL_REPOSITORY.updateOne({
-            _id: new ObjectId(callId)
-        }, updateOperation, session);
-
-        await MESSAGE_REPOSITORY.updateOne({
-            'callInfo.callId': callId
-        }, {
-            $set: {
-                'callInfo.hasTranscript': true
-            }
-        }, session);
-
-        await session.commitTransaction();
-
+        console.log(` Đã lưu ${transcriptArray.length} câu thoại vào DB thành công!`);
         return true;
+
     } catch (error) {
-        if (session && session.inTransaction()) {
-            await session.abortTransaction();
-        }
         console.error("Lỗi trong onSpeedToTextCall:", error);
         throw error;
-    } finally {
-        if (session) {
-            await session.endSession();
-        }
     }
-}
+};
 
 const onGenerateCallAISummary = async ({ callId }) => {
     const session = client.startSession();

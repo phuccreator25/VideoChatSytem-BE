@@ -21,6 +21,7 @@ export const shareMessageQueue = new Queue("share-message-queue", defaultQueueOp
 export const linkPreviewQueue = new Queue("link-preview-queue", defaultQueueOptions);
 export const sendMessageQueue = new Queue("send-message-queue", defaultQueueOptions);
 export const sendMessageQueueEvents = new QueueEvents("send-message-queue", { connection: redisConnection });
+export const speedToTextQueue = new Queue("speed-to-text-queue", defaultQueueOptions);
 
 //VERCAL
 // import { Queue, QueueEvents } from "bullmq";

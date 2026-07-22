@@ -10,8 +10,6 @@ callRouter.post('/calls/end-call', authMiddleware, CALL_CONTROLLER.onEndCall)
 
 callRouter.post('/calls/accept-call', authMiddleware, CALL_CONTROLLER.onAcceptCall)
 
-callRouter.post('/calls/speed-to-text', authMiddleware, CALL_CONTROLLER.onSpeedToTextCall)
-
 callRouter.post('/calls/generate-summary', authMiddleware, CALL_CONTROLLER.onGenerateCallAISummary)
 
 export default callRouter

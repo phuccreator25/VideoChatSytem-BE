@@ -37,7 +37,8 @@ const SERVER = async () => {
       'http://127.0.0.1:5173',
       'http://localhost:30080',
       'http://127.0.0.1:30080',
-      'https://videochatsystem-fe.vercel.app'
+      'https://videochatsystem-fe.vercel.app',
+      'http://chat-app.test'
     ],
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
@@ -70,6 +71,7 @@ const SERVER = async () => {
     await import('./src/workers/shareMessageWorker.js')
     await import('./src/workers/getLinkPeviewWorker.js')
     await import('./src/workers/sendMessageWorker.js')
+    await import('./src/workers/speedToTextWorker.js')
     console.log('Worker run successfully')
   } catch (error) {
     console.error('Failed worker:', error)
