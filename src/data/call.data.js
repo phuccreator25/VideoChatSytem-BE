@@ -23,3 +23,9 @@ export const participantStatuses = {
     REJECTED: "rejected",
     MISSED: "missed",
 };
+
+export const vectorStatus = {
+    PENDING: 'pending',
+    COMPLETED: 'completed',
+    FAILED: 'failed'
+}

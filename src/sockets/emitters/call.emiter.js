@@ -44,3 +44,11 @@ export const emitCallToggleMediaError = (receivedId, payload) => {
     emitToUser(receivedId, "call:toggle-media:error", payload);
 }
 
+export const emitCallReconnect = (receivedId, payload) => {
+    emitToUser(receivedId, "call:reconnect", payload);
+}
+
+export const emitCallReconnectAnswer = (receiverId, payload) => {
+    emitToUser(receiverId,"call:reconnect:answer", payload)
+}
+

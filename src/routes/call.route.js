@@ -12,4 +12,10 @@ callRouter.post('/calls/accept-call', authMiddleware, CALL_CONTROLLER.onAcceptCa
 
 callRouter.post('/calls/generate-summary', authMiddleware, CALL_CONTROLLER.onGenerateCallAISummary)
 
+callRouter.post('/calls/:callId/vector-status', CALL_CONTROLLER.updateVectorStatus)
+
+callRouter.get('/calls/pending-vector', CALL_CONTROLLER.onGetPendingVectorCalls)
+
+callRouter.post('/calls/query-chat', CALL_CONTROLLER.onQueryChat)
+
 export default callRouter

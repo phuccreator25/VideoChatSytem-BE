@@ -34,6 +34,9 @@ const env = {
   REDIS_URI: process.env.REDIS_URI || `redis://${process.env.REDIS_HOST || '127.0.0.1'}:${process.env.REDIS_PORT || 6379}`,
 
   GEMINI_API_KEY: process.env.GEMINI_API_KEY,
+
+  URL_INGESTION_CALL: process.env.URL_INGESTION_CALL,
+  URL_QUERY_CALL: process.env.URL_QUERY_CALL,
 }
 
 export default env

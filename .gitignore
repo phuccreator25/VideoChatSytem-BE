@@ -8,3 +8,7 @@ coverage
 .dockerignore
 Dockerfile
 docker-compose.yml
+
+# Test 
+**/__tests__/
+**/test-utils/

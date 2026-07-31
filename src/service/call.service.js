@@ -1,5 +1,5 @@
 import { CALL_REPOSITORY } from '../repository/call.repository.js';
-import { callStatuses, participantRoles, participantStatuses } from '../data/call.data.js';
+import { callStatuses, participantRoles, participantStatuses, vectorStatus } from '../data/call.data.js';
 import { ObjectId } from 'mongodb';
 import { emitAcceptCall, emitCallEnd } from '../sockets/emitters/call.emiter.js';
 import { endCallSession, isUserOnline, removeSharingScreen, clearCallTimer, removePendingOffer } from '../sockets/socketStore.js';
@@ -11,6 +11,7 @@ import { emitNewMessages } from '../sockets/emitters/messages.emitter.js';
 import axios from 'axios';
 import env from '../config/env.js';
 import { GEMINI_SERVICE } from './AI/gemini.service.js';
+import { onIngestionDataCall } from '../n8n/ingestionDataCall.js';
 
 const onGetTurnCredentials = async () => {
     try {
@@ -150,6 +151,12 @@ const onEndCall = async ({ callId, currentUserId, reason = null }) => {
             });
         }
 
+        const hasTranscript = Array.isArray(call.transcript) && call.transcript.length > 0;
+        const isCompleted = updatedStatus === callStatuses.COMPLETED;
+
+        //Check xem hook bắn chưa
+        const shouldTriggerRagWebhook = shouldCloseUI && isCompleted && hasTranscript && !call.isVectorIndexed;
+
         // Cập nhật trạng thái Call vào Database
         await CALL_REPOSITORY.updateOne({
             _id: new ObjectId(callId)
@@ -158,22 +165,20 @@ const onEndCall = async ({ callId, currentUserId, reason = null }) => {
                 status: updatedStatus,
                 endedAt: call.endedAt,
                 updatedAt: new Date(),
-                participants: call.participants
+                participants: call.participants,
+                isVectorIndexed: shouldTriggerRagWebhook ? vectorStatus.PENDING : vectorStatus.FAILED
             }
         }, session);
 
         let createdCallMessage = null;
-        const hasTranscript = Array.isArray(call.transcript) && call.transcript.length > 0;
 
-        // Ghi MESSAGE & DELIVERY KHI CUỘC GỌI HOÀN TOÀN KẾT THÚC (shouldCloseUI = true)
+        // Ghi MESSAGE & DELIVERY KHI CUỘC GỌI HOÀN TOÀN KẾT THÚC
         if (shouldCloseUI) {
             const callerId = call.participants[0]?.userId;
-            const isCompleted = updatedStatus === callStatuses.COMPLETED;
             const durationSec = isCompleted && call.endedAt && call.startedAt
                 ? Math.max(0, Math.floor((call.endedAt - call.startedAt) / 1000))
                 : 0;
 
-            // Xác định chính xác trạng thái log cuộc gọi (completed, cancelled, rejected, missed)
             let callLogStatus = updatedStatus;
 
             if (!isCompleted) {
@@ -212,7 +217,7 @@ const onEndCall = async ({ callId, currentUserId, reason = null }) => {
                 createdAt: new Date(),
             }, session);
 
-            // Tạo Message Delivery cho các thành viên khác (Hỗ trợ 1-1 và Group Call)
+            // Tạo Message Delivery cho các thành viên khác
             const otherParticipants = call.participants.filter(
                 (p) => p.userId.toString() !== callerId.toString()
             );
@@ -233,6 +238,11 @@ const onEndCall = async ({ callId, currentUserId, reason = null }) => {
         await session.commitTransaction();
         session.endSession();
 
+        //Webhook
+        if (shouldTriggerRagWebhook) {
+            await onIngestionDataCall({ callId })
+        }
+
         if (shouldCloseUI && createdCallMessage) {
             const messageCreated = await MESSAGE_REPOSITORY.findMessageAfterSend(createdCallMessage._id);
 
@@ -244,8 +254,8 @@ const onEndCall = async ({ callId, currentUserId, reason = null }) => {
         const finalCallData = await CALL_REPOSITORY.findOne({ _id: new ObjectId(callId) });
 
         // Xác định lý do cuộc gọi kết thúc
-        let finalReason = reason
-        if (!finalReason && call.status === callStatuses.RINGING) { // trong trường hợp ring user bấm tay thủ công
+        let finalReason = reason;
+        if (!finalReason && call.status === callStatuses.RINGING) {
             const callerParticipant = call.participants.find(p => p.role === participantRoles.CALLER);
             const isCallerEnd = callerParticipant && callerParticipant.userId.toString() === currentUserId.toString();
             finalReason = isCallerEnd ? 'cancelled' : 'rejected';
@@ -451,11 +461,114 @@ const onGenerateCallAISummary = async ({ callId }) => {
     }
 };
 
+const onUpdateVectorStatus = async ({ callId, status }) => {
+    try {
+        const call = await CALL_REPOSITORY.findOne({ _id: new ObjectId(callId) });
+        if (!call) {
+            throw new Error("Call not found");
+        }
+
+        await CALL_REPOSITORY.updateOne(
+            { _id: new ObjectId(callId) },
+            {
+                $set: {
+                    isVectorStatus: status,
+                    updatedAt: new Date()
+                }
+            },
+        );
+
+        return true;
+    } catch (error) {
+        console.error("Lỗi trong onUpdateVectorStatus:", error?.response?.data || error.message);
+        throw error;
+    }
+}
+
+const onGetPendingVectorCalls = async () => {
+    try {
+        const now = new Date();
+        const fifteenMinsAgo = new Date(now.getTime() - 15 * 60 * 1000);
+
+        await CALL_REPOSITORY.updateMany(
+            { 
+                isVectorStatus: vectorStatus.PENDING, 
+                retryCount: { $gte: 3 } 
+            },
+            { 
+                $set: { isVectorStatus: vectorStatus.FAILED } 
+            }
+        );
+
+        const calls = await CALL_REPOSITORY.findMany({
+            isVectorStatus: vectorStatus.PENDING,
+            updatedAt: { $lt: fifteenMinsAgo },
+            retryCount: { $lt: 3 }
+        });
+
+        if (calls.length > 0) {
+            const pendingCallIds = calls.map(call => call._id);
+
+            await CALL_REPOSITORY.updateMany(
+                { _id: { $in: pendingCallIds } },
+                {
+                    $inc: { retryCount: 1 },
+                    $set: { updatedAt: now }
+                }
+            );
+        }
+
+        return calls
+    } catch (error) {
+        console.error("Lỗi trong onGetPendingVectorCalls:", error?.response?.data || error.message);
+        
+        return res.status(500).json({
+            success: false,
+            message: "Internal Server Error",
+            error: error.message
+        });
+    }
+};
+
+const onQueryChat = async ({ question, userId }) => {
+    try {
+        if (!question || !userId) throw new Error("Missing question or userId");
+
+        const response = await axios.post(env.URL_QUERY_CALL, { question, userId });
+        const rawData = response.data;
+
+        let outputText = "";
+        if (typeof rawData === 'string') {
+            outputText = rawData;
+        } else if (Array.isArray(rawData) && rawData.length > 0) {
+            outputText = rawData[0]?.output;
+        } else if (typeof rawData === 'object' && rawData !== null) {
+            outputText = rawData.output;
+        }
+
+        //Format 
+        if (typeof outputText === 'string') {
+            outputText = outputText
+                .replace(/([^\n])\s*\*\s+\*\*/g, '$1\n* **')
+                .replace(/([^\n])\s*-\s+\*\*/g, '$1\n- **');
+        }
+
+        return outputText || "Không nhận được phản hồi từ AI.";
+
+    } catch (error) {
+        console.error("Lỗi trong onQueryChat Service:", error?.response?.data || error.message);
+        throw error;
+    }
+}
+
 export const CALL_SERVICE = {
     onGetTurnCredentials,
     onMakeCall,
     onEndCall,
     onAcceptCall,
     onSpeedToTextCall,
-    onGenerateCallAISummary
+    onGenerateCallAISummary,
+    onUpdateVectorStatus,
+    onGetPendingVectorCalls,
+    onQueryChat
 };

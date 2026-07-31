@@ -1,5 +1,5 @@
 import Joi from "joi";
-import { callTypes, callStatuses, participantRoles, participantStatuses } from "../data/call.data.js";
+import { callTypes, callStatuses, participantRoles, participantStatuses, vectorStatus } from "../data/call.data.js";
 
 const COLLECTION_CALL_NAME = "calls";
 
@@ -47,6 +47,12 @@ const COLLECTION_CALL_SCHEMA = Joi.object({
         )
         .allow(null)
         .default(null),
+    isVectorStatus: Joi.string()
+        .valid(...Object.values(vectorStatus))
+        .default(vectorStatus.PENDING),
+
+    retryCount: Joi.number()
+        .default(0),
 
     createdAt: Joi.date().default(() => new Date()),
     updatedAt: Joi.date().allow(null).default(null),

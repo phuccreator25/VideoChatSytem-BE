@@ -89,6 +89,7 @@ const generateCallSummary = async (transcript) => {
     }
 };
 
+
 export const GEMINI_SERVICE = {
     generateCallSummary,
 };

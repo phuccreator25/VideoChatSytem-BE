@@ -110,7 +110,7 @@ export const onHandleUserDisconnected = async ({ userId, sessionId, socket }) =>
           });
         })
       );
-    }, 2000); // 2 second grace period
+    }, 10000); 
 
     disconnectTimers.set(userId, timer);
   }
