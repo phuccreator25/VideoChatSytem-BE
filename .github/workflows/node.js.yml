@@ -1,0 +1,130 @@
+name: VideoChat-BE CI/CD Pipeline (Docker Hub + GitOps)
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+jobs:
+  build-test-and-push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+
+    steps:
+      # --- 1. CHECKOUT CODE ---
+      - name: Checkout Application Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Cần thiết để tính Semantic Version chính xác
+
+      # --- 2. TÍNH SEMANTIC VERSION (v1.0.0, v1.1.0, ...) ---
+      - name: Calculate Semantic Version
+        id: semver
+        uses: paulhatch/semantic-version@v5.4.0
+        with:
+          tag_prefix: "v"
+          major_pattern: "(BREAKING CHANGE:|!:)"
+          minor_pattern: "^feat"
+          version_format: "${major}.${minor}.${patch}"
+          bump_each_commit: false
+
+      # --- 3. ĐĂNG NHẬP DOCKER HUB ---
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      # --- 4. TẠO DOCKER BUILDX ---
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # --- 5. BUILD LOCAL IMAGE ĐỂ SCANN LỖ HỔNG (DEVSECOPS) ---
+      - name: Build local image for scanning
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          load: true
+          tags: temp-scan-image:latest
+
+      # --- 6. CHẠY TRIVY SCAN (BẢO MẬT IMAGE) ---
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: "temp-scan-image:latest"
+          format: "table"
+          exit-code: "0" # Đổi thành "1" nếu muốn CHẶN pipeline khi phát hiện lỗi bảo mật HIGH/CRITICAL
+          ignore-unfixed: true
+          vuln-type: "os,library"
+          severity: "CRITICAL,HIGH"
+
+      # --- 7. BUILD VÀ PUSH THẬT LÊN DOCKER HUB ---
+      - name: Build and push Docker image
+        id: build-push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          push: ${{ github.event_name != 'pull_request' }} # Không push image nếu chỉ tạo Pull Request
+          tags: |
+            ${{ secrets.DOCKERHUB_USERNAME }}/videochat-be:latest
+            ${{ secrets.DOCKERHUB_USERNAME }}/videochat-be:v${{ steps.semver.outputs.version }}
+            ${{ secrets.DOCKERHUB_USERNAME }}/videochat-be:${{ github.sha }}
+
+      # --- 8. CÀI ĐẶT COSIGN VÀ KÝ SỐ IMAGE (Tùy chọn nâng cao) ---
+      - name: Install Cosign
+        if: github.event_name != 'pull_request' && secrets.COSIGN_PRIVATE_KEY != ''
+        uses: sigstore/cosign-installer@v3.5.0
+
+      - name: Sign the published Docker image
+        if: github.event_name != 'pull_request' && secrets.COSIGN_PRIVATE_KEY != ''
+        env:
+          COSIGN_PRIVATE_KEY: ${{ secrets.COSIGN_PRIVATE_KEY }}
+          COSIGN_PASSWORD: ${{ secrets.COSIGN_PASSWORD }}
+        run: |
+          cosign sign --yes --key env://COSIGN_PRIVATE_KEY "${{ secrets.DOCKERHUB_USERNAME }}/videochat-be@${{ steps.build-push.outputs.digest }}"
+
+      # --- 9. CHECKOUT GITOPS REPO (phuccreator25/VideoChatSytem-Gitops) ---
+      - name: Checkout GitOps Repository
+        if: github.event_name != 'pull_request'
+        uses: actions/checkout@v4
+        with:
+          repository: 'phuccreator25/VideoChatSytem-Gitops'
+          token: ${{ secrets.GITOPS_TOKEN }}
+          path: gitops-repo
+
+      # --- 10. CẬP NHẬT TAG TRONG DEPLOYMENT.YML CỦA GITOPS REPO ---
+      - name: Update Image Tag in GitOps Manifest
+        if: github.event_name != 'pull_request'
+        run: |
+          cd gitops-repo
+          
+          # Cập nhật tag mới theo Semantic Version (ví dụ: truongphuc25/videochat-be:v1.0.1)
+          sed -i 's|image: ${{ secrets.DOCKERHUB_USERNAME }}/videochat-be:.*|image: ${{ secrets.DOCKERHUB_USERNAME }}/videochat-be:v${{ steps.semver.outputs.version }}|g' deployment.yml
+          
+          # Cấu hình Git Bot
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          
+          # Commit và Push sang GitOps Repo
+          git add deployment.yml
+          if git diff --staged --quiet; then
+            echo "No changes in deployment.yml"
+          else
+            git commit -m "chore(deps): update videochat-be image tag to v${{ steps.semver.outputs.version }} [skip ci]"
+            git push origin main
+          fi
+
+      # --- 11. BẤM GIT TAG CHO CODE APP ---
+      - name: Create Git Tag on App Repo
+        if: github.event_name != 'pull_request'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag v${{ steps.semver.outputs.version }} || exit 0
+          git push origin v${{ steps.semver.outputs.version }} || exit 0
