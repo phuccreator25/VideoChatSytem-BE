@@ -7,6 +7,7 @@ import { isUserOnline } from "../../sockets/socketStore.js";
 import { MESSAGE_REPOSITORY } from "../../repository/message.repository.js";
 import { emitNewMessages } from "../../sockets/emitters/messages.emitter.js";
 import { fileUploadQueue, linkPreviewQueue, sendMessageQueue, sendMessageQueueEvents } from "../../queues/uploadFileQueue.js";
+import { BLOCK_REPOSITORY } from "../../repository/block.repository.js";
 
 export const onSendMessage = async ({
   message,
@@ -15,6 +16,14 @@ export const onSendMessage = async ({
   currentUserId,
 }) => {
   try {
+    const ortherUserId = await CONVERSATION_PARTICIPANT_REPOSITORY.findOtherUserIdByConversation(conversationId, currentUserId)
+
+    const blockStatus = await BLOCK_REPOSITORY.findBlockStatusBetweenUsers(currentUserId, ortherUserId)
+
+    if (blockStatus.isBlockedByMe || blockStatus.isBlockedMe) {
+      throw new Error("Cannot send message. Block status active between users.");
+    }
+
     const job = await sendMessageQueue.add("send-message", {
       message,
       files,

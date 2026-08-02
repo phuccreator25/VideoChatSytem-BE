@@ -34,6 +34,29 @@ const updateOne = async ({ filter, data }) => {
     );
 };
 
+const findBlockStatusBetweenUsers = async (currentUserId, otherUserId) => {
+  const blocks = await GET_DB()
+    .collection(BLOCK_MODEL.COLLECTION_BLOCK_NAME)
+    .find({
+      $or: [
+        { blockerId: currentUserId, blockedId: otherUserId },
+        { blockerId: otherUserId, blockedId: currentUserId },
+      ],
+      status: "blocked",
+    })
+    .toArray();
+
+  const isBlockedByMe = blocks.some(
+    (b) => b.blockerId === currentUserId && b.status === "blocked"
+  );
+  const isBlockedMe = blocks.some(
+    (b) => b.blockerId === otherUserId && b.status === "blocked"
+  );
+
+  return { isBlockedByMe, isBlockedMe };
+};
+
+
 export const BLOCK_REPOSITORY = {
-    createOne, findByBlock, updateOne
+    createOne, findByBlock, updateOne, findBlockStatusBetweenUsers
 }

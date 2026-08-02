@@ -12,6 +12,7 @@ import axios from 'axios';
 import env from '../config/env.js';
 import { GEMINI_SERVICE } from './AI/gemini.service.js';
 import { onIngestionDataCall } from '../n8n/ingestionDataCall.js';
+import { BLOCK_REPOSITORY } from '../repository/block.repository.js';
 
 const onGetTurnCredentials = async () => {
     try {
@@ -34,6 +35,12 @@ const onGetTurnCredentials = async () => {
 
 const onMakeCall = async ({ data }) => {
     const { conversationId, callerId, calleeId, offer, type } = data;
+
+    const blockStatus = await BLOCK_REPOSITORY.findBlockStatusBetweenUsers(callerId, calleeId);
+
+    if (blockStatus.isBlockedByMe || blockStatus.isBlockedMe) {
+        throw new Error("You can't make a call to a blocked user");
+    }
 
     if (!callerId || !calleeId || !offer) {
         return {

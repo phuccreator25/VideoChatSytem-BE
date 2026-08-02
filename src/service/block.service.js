@@ -1,18 +1,19 @@
 import { BLOCK_REPOSITORY } from "../repository/block.repository.js";
 import { USER_REPOSITORY } from "../repository/user.repository.js";
+import { emitBlockUser, emitUnblockUser } from "../sockets/emitters/block.emitter.js";
 
-const onBlock = async({currentUserId, UserBlockedId}) => {
-    if(!currentUserId || !UserBlockedId) return;
-    
-    const user = await USER_REPOSITORY.findById(UserBlockedId)
+const onBlock = async ({ currentUserId, UserBlockedId }) => {
+    if (!currentUserId || !UserBlockedId) return;
 
-    if(!user) throw new Error ('User Not Found')
+    const user = await USER_REPOSITORY.findById(UserBlockedId);
 
-    if(currentUserId === UserBlockedId) throw new Error("You can't block yourself.")
+    if (!user) throw new Error('User Not Found');
 
-    const blockItem = await BLOCK_REPOSITORY.findByBlock(currentUserId,UserBlockedId)
+    if (currentUserId === UserBlockedId) throw new Error("You can't block yourself.");
 
-    if(blockItem && blockItem.status === 'blocked') throw new Error ('You have blocked this person.')
+    const blockItem = await BLOCK_REPOSITORY.findByBlock(currentUserId, UserBlockedId);
+
+    if (blockItem && blockItem.status === 'blocked') throw new Error('You have blocked this person.');
 
     const dataCreated = {
         blockerId: currentUserId,
@@ -20,45 +21,68 @@ const onBlock = async({currentUserId, UserBlockedId}) => {
         status: 'blocked',
         blockedAt: new Date(),
         unblockedAt: null,
-        createdAt: new Date()
+        createdAt: new Date(),
+    };
+
+    if (blockItem && blockItem.status === 'unblocked') {
+        await BLOCK_REPOSITORY.updateOne({ filter: { blockerId: currentUserId, blockedId: UserBlockedId }, data: dataCreated });
+    } else {
+        await BLOCK_REPOSITORY.createOne(dataCreated);
     }
 
-    if(blockItem && blockItem.status === 'unblocked') {
-        const block = await BLOCK_REPOSITORY.updateOne({ filter: { blockerId: currentUserId, blockedId: UserBlockedId }, data: dataCreated })
-        return block
-    }
+    emitBlockUser(UserBlockedId, {
+        userId: currentUserId,
+        isBlockedMe: true,
+    });
 
-    const block = await BLOCK_REPOSITORY.createOne(dataCreated)
+    emitBlockUser(currentUserId, {
+        userId: UserBlockedId,
+        isBlockedByMe: true,
+    });
 
-    return block
-}
+    return {
+        userId: UserBlockedId,
+        isBlockedByMe: true,
+    };
+};
 
-const onUnblock = async({currentUserId, UserBlockedId}) => {
-    if(!currentUserId || !UserBlockedId) return;
+const onUnblock = async ({ currentUserId, UserBlockedId }) => {
+    if (!currentUserId || !UserBlockedId) return;
 
-    const user = await USER_REPOSITORY.findById(UserBlockedId)
+    const user = await USER_REPOSITORY.findById(UserBlockedId);
 
-    if(!user) throw new Error ('User Not Found')
+    if (!user) throw new Error('User Not Found');
 
-    if(currentUserId === UserBlockedId) throw new Error("You can't unblock yourself.")
+    if (currentUserId === UserBlockedId) throw new Error("You can't unblock yourself.");
 
-    const blockItem = await BLOCK_REPOSITORY.findByBlock(currentUserId,UserBlockedId)
+    const blockItem = await BLOCK_REPOSITORY.findByBlock(currentUserId, UserBlockedId);
 
-    if(!blockItem) throw new Error ('You have not blocked this person.')
+    if (!blockItem) throw new Error('You have not blocked this person.');
 
-    const dataCreated = {
+    const dataUpdated = {
         blockerId: currentUserId,
         blockedId: UserBlockedId,
         status: 'unblocked',
-        blockedAt: new Date(),
-        unblockedAt: null,
-        createdAt: new Date()
-    }
+        unblockedAt: new Date(),
+    };
 
-    const unBlock = await BLOCK_REPOSITORY.updateOne({ filter: { blockerId: currentUserId, blockedId: UserBlockedId }, data: dataCreated })
+    await BLOCK_REPOSITORY.updateOne({ filter: { blockerId: currentUserId, blockedId: UserBlockedId }, data: dataUpdated });
 
-    return unBlock
-}
+    emitUnblockUser(UserBlockedId, {
+        userId: currentUserId,
+        isBlockedMe: false,
+    });
+
+    emitUnblockUser(currentUserId, {
+        userId: UserBlockedId,
+        isBlockedByMe: false,
+    });
+
+    return {
+        userId: UserBlockedId,
+        isBlockedByMe: false,
+    };
+};
 
 export const BLOCK_SERVICE ={
     onBlock,

@@ -11,6 +11,7 @@ import {
   emitDeletePinMessages,
   emitPinMessages,
 } from "../sockets/emitters/messages.emitter.js";
+import { BLOCK_REPOSITORY } from "../repository/block.repository.js";
 
 const onGetOrCreateConversation = async ({ currentUserId, userId }) => {
   if (!currentUserId || !userId)
@@ -91,7 +92,7 @@ const onGetConversationById = async ({ conversationId, currentUserId }) => {
     throw new Error("You are not a participant of this conversation");
   }
 
-  const [userData, contactData, messages, Invitation, pinMessages] = await Promise.all([
+  const [userData, contactData, messages, Invitation, pinMessages, block] = await Promise.all([
     USER_REPOSITORY.findById(otherUserId),
     CONTACTS_REPOSITORY.findContactItem(currentUserId, otherUserId),
     MESSAGE_REPOSITORY.findByConversationId(conversationId, currentUserId, {
@@ -112,6 +113,7 @@ const onGetConversationById = async ({ conversationId, currentUserId }) => {
       ],
     }),
     CONVERSATION_REPOSITORY.findManyPinMessages(conversationId, currentUserId),
+    BLOCK_REPOSITORY.findBlockStatusBetweenUsers(currentUserId, otherUserId)
   ]);
 
   if (!userData) {
@@ -125,6 +127,11 @@ const onGetConversationById = async ({ conversationId, currentUserId }) => {
       status: conversation.status,
       lastMessageAt: conversation.lastMessageAt,
       lastMessageId: conversation.lastMessageId,
+      block: {
+        userId: otherUserId,
+        isBlockedByMe: block.isBlockedByMe,
+        isBlockedMe: block.isBlockedMe,
+      },
       pinMessages,
     },
     user: {
