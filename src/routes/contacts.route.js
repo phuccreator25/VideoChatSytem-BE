@@ -10,4 +10,6 @@ contactRouter.delete('/contacts/:idFriend', authMiddleware, CONTACT_CONTROLLER.o
 
 contactRouter.get('/contacts/user-online', authMiddleware, CONTACT_CONTROLLER.onGetContactsOnlines)
 
+contactRouter.get('/contacts/search-users', authMiddleware, CONTACT_CONTROLLER.onSearchContacts)
+
 export default contactRouter

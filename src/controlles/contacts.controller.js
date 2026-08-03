@@ -51,6 +51,22 @@ const onGetContactsOnlines = async (req, res, next) => {
     }
 }
 
+const onSearchContacts = async(req, res, next) => {
+    try {
+        const {keyword, excludeUserIds } = req.query
+        const currentUserId = req.user.id
+        const excludedIds = excludeUserIds ? excludeUserIds.split(",") : [];
+        
+        const data = await CONTACT_SERVICE.onSearchContacts(currentUserId, keyword, excludedIds)
+        res.status(200).json({
+            data: data
+        })
+    } catch (error) {
+        next(error)
+    }
+}
+
+
 export const CONTACT_CONTROLLER = {
-    onGetData, onUpdateContact, onRemoveFriend, onGetContactsOnlines
+    onGetData, onUpdateContact, onRemoveFriend, onGetContactsOnlines, onSearchContacts
 }

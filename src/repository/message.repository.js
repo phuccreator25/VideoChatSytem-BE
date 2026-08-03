@@ -562,6 +562,27 @@ const onGetShareLinks = async (conversationId, limit = 20, skip = 0) => {
   });
 };
 
+const searchMessagesGlobal = async (keyword, limit = 10) => {
+  try {
+    const pipeline = buildMessagePipeline({
+      match: {
+        content: { $regex: keyword, $options: "i" },
+        isRevoked: false,
+        type: "text",
+      },
+      sort: { createdAt: -1 },
+      limit: limit,
+    });
+
+    return await GET_DB()
+      .collection(COLLECTION_NAME)
+      .aggregate(pipeline)
+      .toArray();
+  } catch (error) {
+    throw error;
+  }
+};
+
 export const MESSAGE_REPOSITORY = {
   createOne,
   findByConversationId,
@@ -575,4 +596,5 @@ export const MESSAGE_REPOSITORY = {
   onGetShareMedia,
   onGetShareFiles,
   onGetShareLinks,
+  searchMessagesGlobal,
 };

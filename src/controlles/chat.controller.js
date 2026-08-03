@@ -194,6 +194,21 @@ const onGetLinkPreview = async (req, res, next) => {
   }
 };
 
+const onSearchMessageGlobal = async (req, res, next) => {
+  try {
+    const { keyword } = req.query;
+    const currentUserId = req.user?.id;
+
+    const messages = await CHAT_SERVICE.onSearchMessageGlobal(currentUserId, keyword);
+
+    return res.status(200).json({
+      data: messages,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 
 export const CHAT_CONTROLLER = {
   onSendMessage,
@@ -207,4 +222,5 @@ export const CHAT_CONTROLLER = {
   onGetShareFiles,
   onGetShareLinks,
   onGetLinkPreview,
+  onSearchMessageGlobal,
 };

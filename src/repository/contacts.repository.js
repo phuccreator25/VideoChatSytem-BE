@@ -221,6 +221,86 @@ const findContactDetails = async (ownerId, targetUserId) => {
   return result[0] || null;
 };
 
+const searchContacts = async (currentUserId, keyword, limit = 10, excludeUserIds = []) => {
+  const searchRegex = new RegExp(keyword.trim(), "i");
+
+  const match = {
+    ownerId: currentUserId,
+  }
+  
+  if (excludeUserIds && excludeUserIds.length > 0) {
+    match.contactUserId = { $nin: excludeUserIds }
+  }
+
+  return await GET_DB()
+    .collection(CONTACT_MODEL.COLLECTION_CONTACT_NAME)
+    .aggregate([
+      {
+        $match: match,
+      },
+      {
+        $lookup: {
+          from: USER_MODEL.COLECTION_USER_NAME,
+          let: { friendUserId: "$contactUserId" },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $eq: ["$_id", { $toObjectId: "$$friendUserId" }],
+                },
+              },
+            },
+            {
+              $project: {
+                _id: 1,
+                fullname: 1,
+                avatar: 1,
+              },
+            },
+          ],
+          as: "friendInfo",
+        },
+      },
+      {
+        $unwind: {
+          path: "$friendInfo",
+          preserveNullAndEmptyArrays: false,
+        },
+      },
+      {
+        $match: {
+          $or: [
+            { nickname: { $regex: searchRegex } },
+            { "friendInfo.fullname": { $regex: searchRegex } },
+          ],
+        },
+      },
+      {
+        $limit: limit,
+      },
+      {
+        $project: {
+          _id: 0,
+          userId: "$contactUserId",
+          name: {
+            $cond: {
+              if: {
+                $and: [
+                  { $ne: ["$nickname", null] },
+                  { $gt: [{ $strLenCP: { $trim: { input: "$nickname" } } }, 0] },
+                ],
+              },
+              then: "$nickname",
+              else: "$friendInfo.fullname",
+            },
+          },
+          avatar: "$friendInfo.avatar",
+        },
+      },
+    ])
+    .toArray();
+};
+
 export const CONTACTS_REPOSITORY = {
   createOne,
   findByUserId,
@@ -228,5 +308,6 @@ export const CONTACTS_REPOSITORY = {
   findMany,
   updateOne,
   deleteOne,
-  findContactDetails
+  findContactDetails,
+  searchContacts,
 };

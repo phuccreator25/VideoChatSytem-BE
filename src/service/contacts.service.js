@@ -135,11 +135,16 @@ const onGetContactOfUserOnline = async (userId) => {
   return onlineContacts;
 };
 
+const onSearchContacts = async (currentUserId, keyword, excludeUserIds = []) => {
+  if (!keyword || !keyword.trim()) return [];
 
+  return await CONTACTS_REPOSITORY.searchContacts(currentUserId, keyword, 10, excludeUserIds);
+};
 
 export const CONTACT_SERVICE = {
   onGetData,
   onUpdateContact,
   onRemoveContact,
-  onGetContactOfUserOnline
+  onGetContactOfUserOnline,
+  onSearchContacts
 };

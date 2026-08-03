@@ -3,10 +3,12 @@ import { CONVERSATION_REPOSITORY } from "../../repository/conversation.repositor
 import { ObjectId } from "mongodb";
 import { CONVERSATION_PARTICIPANT_REPOSITORY } from "../../repository/conversationParticipant.repository.js";
 import { MESSAGE_REPOSITORY } from "../../repository/message.repository.js";
+import { USER_REPOSITORY } from "../../repository/user.repository.js";
 import {
   emitDeleteMessage,
   emitRevokeMessage,
 } from "../../sockets/emitters/messages.emitter.js";
+import { CONTACTS_REPOSITORY } from "../../repository/contacts.repository.js";
 
 export const onDeleteMessage = async ({ conversationId, messageId, currentUserId }) => {
   const session = client.startSession();
@@ -114,6 +116,45 @@ export const onSearchMessage = async ({ conversationId, keyword, currentUserId }
     });
 
     return messages;
+  } catch (error) {
+    throw error;
+  }
+};
+
+export const onSearchMessageGlobal = async (currentUserId, keyword) => {
+  try {
+    if (!keyword || !keyword.trim()) return [];
+
+    const messages = await MESSAGE_REPOSITORY.searchMessagesGlobal(keyword.trim());
+
+    const formattedMessages = await Promise.all(
+      messages.map(async (msg) => {
+        let senderName = "User";
+
+        if (currentUserId && msg.senderId) {
+          const contactDetail = await CONTACTS_REPOSITORY.findContactDetails(currentUserId, msg.senderId);
+          
+          if (contactDetail) {
+            senderName = (contactDetail.nickname && contactDetail.nickname.trim())
+              ? contactDetail.nickname
+              : contactDetail.fullname;
+          } else {
+            const sender = await USER_REPOSITORY.findById(msg.senderId);
+            if (sender) senderName = sender.fullname
+          }
+        }
+
+        return {
+          messageId: msg.id || msg._id.toString(),
+          conversationId: msg.conversationId,
+          content: msg.content,
+          createdAt: msg.createdAt,
+          senderName: senderName,
+        };
+      })
+    );
+
+    return formattedMessages;
   } catch (error) {
     throw error;
   }
