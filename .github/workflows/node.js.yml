@@ -93,16 +93,20 @@ jobs:
 
       # --- 8. CÀI ĐẶT COSIGN VÀ KÝ SỐ IMAGE ---
       - name: Install Cosign
-        if: github.event_name != 'pull_request' && secrets.COSIGN_PRIVATE_KEY != ''
+        if: github.event_name != 'pull_request'
         uses: sigstore/cosign-installer@v3.5.0
 
       - name: Sign the published Docker image
-        if: github.event_name != 'pull_request' && secrets.COSIGN_PRIVATE_KEY != ''
+        if: github.event_name != 'pull_request'
         env:
           COSIGN_PRIVATE_KEY: ${{ secrets.COSIGN_PRIVATE_KEY }}
           COSIGN_PASSWORD: ${{ secrets.COSIGN_PASSWORD }}
         run: |
-          cosign sign --yes --key env://COSIGN_PRIVATE_KEY "${{ secrets.DOCKERHUB_USERNAME }}/videochat-be@${{ steps.build-push.outputs.digest }}"
+          if [ -z "$COSIGN_PRIVATE_KEY" ]; then
+            echo "COSIGN_PRIVATE_KEY is not set. Skipping image signing."
+          else
+            cosign sign --yes --key env://COSIGN_PRIVATE_KEY "${{ secrets.DOCKERHUB_USERNAME }}/videochat-be@${{ steps.build-push.outputs.digest }}"
+          fi
 
       # --- 9. CHECKOUT GITOPS REPO ---
       - name: Checkout GitOps Repository
