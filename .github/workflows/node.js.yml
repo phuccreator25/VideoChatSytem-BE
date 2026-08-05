@@ -89,7 +89,6 @@ jobs:
           tags: |
             ${{ secrets.DOCKERHUB_USERNAME }}/videochat-be:latest
             ${{ secrets.DOCKERHUB_USERNAME }}/videochat-be:v${{ steps.semver.outputs.version }}
-            ${{ secrets.DOCKERHUB_USERNAME }}/videochat-be:${{ github.sha }}
 
       # --- 8. CÀI ĐẶT COSIGN VÀ KÝ SỐ IMAGE ---
       - name: Install Cosign
@@ -105,7 +104,8 @@ jobs:
           if [ -z "$COSIGN_PRIVATE_KEY" ]; then
             echo "COSIGN_PRIVATE_KEY is not set. Skipping image signing."
           else
-            cosign sign --yes --key env://COSIGN_PRIVATE_KEY "${{ secrets.DOCKERHUB_USERNAME }}/videochat-be@${{ steps.build-push.outputs.digest }}"
+            # Ký trực tiếp lên tag SemVer thay vì Digest để tránh tạo ra tag sha256 lạ trên UI
+            cosign sign --yes --key env://COSIGN_PRIVATE_KEY "${{ secrets.DOCKERHUB_USERNAME }}/videochat-be:v${{ steps.semver.outputs.version }}"
           fi
 
       # --- 9. CHECKOUT GITOPS REPO ---
