@@ -19,6 +19,8 @@ const COLLECTION_CONVERSATION_PARTICIPANT_SCHEMA = Joi.object({
   joinAt: Joi.date().default(() => new Date()),
   leftAt: Joi.date().allow(null).default(null),
 
+  deletedAt: Joi.date().allow(null).default(null),
+
   isMuted: Joi.boolean().default(false),
 
   createdAt: Joi.date().default(() => new Date()),

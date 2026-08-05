@@ -210,6 +210,7 @@ const findListByUserId = async (currentUserId) => {
         $match: {
           type: CONVERSATION_MODEL.conversationTypes.DIRECT,
           status: CONVERSATION_MODEL.conversationStatus.ACTIVE,
+          deletedBy: { $nin: [String(currentUserId)] },
         },
       },
       {

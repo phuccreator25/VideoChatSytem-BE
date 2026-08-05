@@ -80,6 +80,27 @@ const findOne = async (filter = {}, session = null) => {
   return result;
 };
 
+const find = async (filter = {}, session = null) => {
+  const options = session ? { session } : undefined;
+
+  const result = await GET_DB()
+    .collection(CONVERSATION_PARTICIPANT_MODEL.COLLECTION_CONVERSATION_PARTICIPANT_NAME)
+    .find(filter, options)
+    .toArray();
+
+  return result;
+};
+
+const updateOne = async(filter = {}, updateData, session = null) => {
+  const options = session ? { session } : undefined;
+
+  const result = await GET_DB()
+    .collection(CONVERSATION_PARTICIPANT_MODEL.COLLECTION_CONVERSATION_PARTICIPANT_NAME)
+    .updateOne(filter, updateData, options);
+
+  return result;
+}
+
 export const CONVERSATION_PARTICIPANT_REPOSITORY = {
-  findOtherUserIdByConversation, createOne, findOne
+  findOtherUserIdByConversation, createOne, findOne, find, updateOne
 };

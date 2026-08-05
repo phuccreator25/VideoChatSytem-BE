@@ -125,7 +125,7 @@ export const onSearchMessageGlobal = async (currentUserId, keyword) => {
   try {
     if (!keyword || !keyword.trim()) return [];
 
-    const messages = await MESSAGE_REPOSITORY.searchMessagesGlobal(keyword.trim());
+    const messages = await MESSAGE_REPOSITORY.searchMessagesGlobal(currentUserId, keyword.trim());
 
     const formattedMessages = await Promise.all(
       messages.map(async (msg) => {

@@ -12,6 +12,7 @@ import {
   emitPinMessages,
 } from "../sockets/emitters/messages.emitter.js";
 import { BLOCK_REPOSITORY } from "../repository/block.repository.js";
+import { CONVERSATION_MODEL } from "../models/conversation.model.js";
 
 const onGetOrCreateConversation = async ({ currentUserId, userId }) => {
   if (!currentUserId || !userId)
@@ -31,6 +32,7 @@ const onGetOrCreateConversation = async ({ currentUserId, userId }) => {
   const newConversationData = {
     type: "direct",
     created_by: currentUserId,
+    deletedBy: [],
     createdAt: new Date(),
   };
 
@@ -96,9 +98,9 @@ const onGetConversationById = async ({ conversationId, currentUserId }) => {
     USER_REPOSITORY.findById(otherUserId),
     CONTACTS_REPOSITORY.findContactItem(currentUserId, otherUserId),
     MESSAGE_REPOSITORY.findByConversationId(conversationId, currentUserId, {
-      limit: 30,
-      sort: { createdAt: -1 },
-    }),
+          limit: 30,
+          sort: { createdAt: -1 },
+        }),
     INVITATION_REPOSITORY.findByFilter({
       status: "pending",
       $or: [
@@ -243,7 +245,7 @@ const onPinMessages = async ({
       );
     }
 
-    const pinnedMessage = await CONVERSATION_REPOSITORY.updateOne(
+    await CONVERSATION_REPOSITORY.updateOne(
       {
         _id: new ObjectId(conversationId),
       },
@@ -394,6 +396,64 @@ const onGetMoreMessages = async ({ conversationId, beforeTimestamp, currentUserI
   return { conversationId, messages: messages.reverse() };
 };
 
+const onDeleteConversation = async ({ conversationId, currentUserId }) => {
+  if (!conversationId) throw new Error("Not found conversation");
+
+  const conversation = await CONVERSATION_REPOSITORY.findOne({
+    _id: new ObjectId(conversationId),
+    status: "active",
+  });
+
+  if (!conversation) throw new Error("Not found conversation");
+
+  await CONVERSATION_REPOSITORY.updateOne(
+    { _id: new ObjectId(conversationId) },
+    {
+      $addToSet: {
+        deletedBy: String(currentUserId),
+      },
+      $set: {
+        updatedAt: new Date(),
+      },
+    }
+  );
+
+  await CONVERSATION_PARTICIPANT_REPOSITORY.updateOne(
+    { conversationId, userId: currentUserId },
+    {
+      $set: {
+        deletedAt: new Date()
+      },
+    },
+  );
+
+  const participants = await CONVERSATION_PARTICIPANT_REPOSITORY.find({
+    conversationId: String(conversationId),
+    leftAt: null,
+  });
+
+  const updatedDeletedBy = new Set([...(conversation.deletedBy || []), String(currentUserId)])
+  
+  const participantUserIds = participants.map((p) => String(p.userId));
+
+  const isAllDeleted =
+    participantUserIds.length > 0 &&
+    participantUserIds.every((userId) => updatedDeletedBy.has(userId));
+
+  if (isAllDeleted) {
+    await CONVERSATION_REPOSITORY.updateOne(
+      { _id: new ObjectId(conversationId) },
+      {
+        $set: {
+          status: CONVERSATION_MODEL.conversationStatus.DELETED,
+        },
+      }
+    );
+  }
+
+  return conversation;
+};
+
 export const CONVERSATION_SERVICE = {
   onGetOrCreateConversation,
   onGetConversationById,
@@ -401,5 +461,6 @@ export const CONVERSATION_SERVICE = {
   onPinMessages,
   onGetPinMessages,
   onDeletePinMessages,
-  onGetMoreMessages
+  onGetMoreMessages,
+  onDeleteConversation
 };

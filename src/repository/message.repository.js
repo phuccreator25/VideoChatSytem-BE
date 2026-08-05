@@ -1,6 +1,7 @@
 import { ObjectId } from "mongodb";
 import { GET_DB } from "../config/database.js";
 import { MESSAGE_MODEL } from "../models/message.model.js";
+import { CONVERSATION_PARTICIPANT_REPOSITORY } from "./conversationParticipant.repository.js";
 
 const COLLECTION_NAME = MESSAGE_MODEL.COLLECTION_MESSAGE_NAME;
 
@@ -81,7 +82,6 @@ const buildMessagePipeline = ({
     }
   );
 
-  // --- ĐOẠN THÊM MỚI: LOOKUP EMOTION REACTIONS ---
   // --- ĐOẠN THÊM MỚI: LOOKUP EMOTION REACTIONS ---
   pipeline.push({
     $lookup: {
@@ -313,7 +313,12 @@ const findByConversationId = async (
 ) => {
   const options = session ? { session } : undefined;
 
+  const participant = await CONVERSATION_PARTICIPANT_REPOSITORY.findOne({ conversationId, userId: currentUserId });
+
   const match = { conversationId };
+  if (participant?.deletedAt) {
+    match.createdAt = { $gt: participant.deletedAt };
+  }
   if (currentUserId) {
     match.deletedBy = {
       $nin: [currentUserId],
@@ -419,11 +424,17 @@ const updateOne = async (filter = {}, updateData = {}, session = null) => {
 const searchMessages = async ({ conversationId, keyword, currentUserId, session = null }) => {
   const options = session ? { session } : undefined;
 
+  const participant = await CONVERSATION_PARTICIPANT_REPOSITORY.findOne({ conversationId, userId: currentUserId });
+
   const match = {
     conversationId,
     content: { $regex: keyword, $options: "i" },
     isRevoked: false,
   };
+
+  if (participant?.deletedAt) {
+    match.createdAt = { $gt: participant.deletedAt };
+  }
 
   if (currentUserId) {
     match.deletedBy = {
@@ -450,11 +461,22 @@ const onGetMoreMessages = async (
   limit = 30,
   skip = 0
 ) => {
+
+  const participant = await CONVERSATION_PARTICIPANT_REPOSITORY.findOne({
+    conversationId,
+    userId: currentUserId
+  });
+
   const match = {
     conversationId,
     createdAt: { $lt: new Date(beforeTimestamp) },
     isRevoked: false,
+
   };
+
+  if (participant?.deletedAt) {
+    match.createdAt.$gt = participant.deletedAt;
+  }
 
   if (currentUserId) {
     match.deletedBy = { $nin: [currentUserId] };
@@ -474,11 +496,31 @@ const onGetMoreMessages = async (
     .toArray();
 };
 
-const onGetShareMedia = async (conversationId, limit = 20, skip = 0) => {
+const onGetShareMedia = async (conversationId, limit = 20, skip = 0, currentUserId) => {
+
+  const participant = await CONVERSATION_PARTICIPANT_REPOSITORY.findOne({
+    conversationId,
+    userId: currentUserId
+  });
+
+  const match = {
+    conversationId,
+    isRevoked: false,
+    type: "file"
+  }
+
+  if (participant?.deletedAt) {
+    match.createdAt = { $gt: participant.deletedAt };
+  }
+
+  if (currentUserId) {
+    match.deletedBy = { $nin: [currentUserId] };
+  }
+
   const results = await GET_DB()
     .collection(COLLECTION_NAME)
     .aggregate([
-      { $match: { conversationId, isRevoked: false, type: "file" } },
+      { $match: match },
       { $unwind: "$attachments" },
       { $match: { "attachments.resourceType": { $in: ["image", "video"] }, "attachments.status": "done", } },
       { $sort: { createdAt: -1 } },
@@ -498,11 +540,30 @@ const onGetShareMedia = async (conversationId, limit = 20, skip = 0) => {
   }));
 };
 
-const onGetShareFiles = async (conversationId, limit = 20, skip = 0) => {
+const onGetShareFiles = async (conversationId, limit = 20, skip = 0, currentUserId) => {
+  const participant = await CONVERSATION_PARTICIPANT_REPOSITORY.findOne({
+    conversationId,
+    userId: currentUserId
+  });
+
+  const match = {
+    conversationId,
+    isRevoked: false,
+    type: "file"
+  }
+
+  if (participant?.deletedAt) {
+    match.createdAt = { $gt: participant.deletedAt };
+  }
+
+  if (currentUserId) {
+    match.deletedBy = { $nin: [currentUserId] };
+  }
+
   const results = await GET_DB()
     .collection(COLLECTION_NAME)
     .aggregate([
-      { $match: { conversationId, isRevoked: false, type: "file" } },
+      { $match: match },
       { $unwind: "$attachments" },
       { $match: { "attachments.resourceType": { $nin: ["image", "video"] }, "attachments.status": "done", } },
       { $sort: { createdAt: -1 } },
@@ -522,15 +583,30 @@ const onGetShareFiles = async (conversationId, limit = 20, skip = 0) => {
   }));
 };
 
-const onGetShareLinks = async (conversationId, limit = 20, skip = 0) => {
+const onGetShareLinks = async (conversationId, limit = 20, skip = 0, currentUserId) => {
+  const participant = await CONVERSATION_PARTICIPANT_REPOSITORY.findOne({
+    conversationId,
+    userId: currentUserId
+  });
+
+  const match = {
+    conversationId,
+    isRevoked: false,
+    type: "text",
+    content: { $regex: /https?:\/\/[^\s]+/ },
+  };
+
+  if (participant?.deletedAt) {
+    match.createdAt = { $gt: participant.deletedAt };
+  }
+
+  if (currentUserId) {
+    match.deletedBy = { $nin: [currentUserId] };
+  }
+
   const results = await GET_DB()
     .collection(COLLECTION_NAME)
-    .find({
-      conversationId,
-      content: { $regex: /https?:\/\/[^\s]+/ },
-      isRevoked: false,
-      type: "text"
-    })
+    .find(match)
     .sort({ createdAt: -1 })
     .skip(skip)
     .limit(limit)
@@ -547,7 +623,7 @@ const onGetShareLinks = async (conversationId, limit = 20, skip = 0) => {
         domain = hostname;
         title = hostname.charAt(0).toUpperCase() + hostname.slice(1);
       } catch (e) {
-        // Fallback if URL parsing fails
+        console.log('error on get link preview', e);
       }
       return {
         id: `${item._id}-${index}`,
@@ -562,16 +638,35 @@ const onGetShareLinks = async (conversationId, limit = 20, skip = 0) => {
   });
 };
 
-const searchMessagesGlobal = async (keyword, limit = 10) => {
+const searchMessagesGlobal = async (currentUserId, keyword, limit = 10) => {
   try {
+    const participants = await CONVERSATION_PARTICIPANT_REPOSITORY.find({
+      userId: currentUserId,
+    });
+
+    if (!participants || participants.length === 0) return [];
+
+    const conversationConditions = participants.map((p) => {
+      const condition = { conversationId: p.conversationId };
+      if (p.deletedAt) {
+        condition.createdAt = { $gt: p.deletedAt };
+      }
+      return condition;
+    });
+
+    const match = {
+      $or: conversationConditions,
+      content: { $regex: keyword, $options: "i" },
+      isRevoked: false,
+      type: "text",
+      deletedBy: { $nin: [currentUserId] },
+    };
+
     const pipeline = buildMessagePipeline({
-      match: {
-        content: { $regex: keyword, $options: "i" },
-        isRevoked: false,
-        type: "text",
-      },
+      match,
       sort: { createdAt: -1 },
-      limit: limit,
+      limit,
+      currentUserId,
     });
 
     return await GET_DB()
@@ -582,6 +677,7 @@ const searchMessagesGlobal = async (keyword, limit = 10) => {
     throw error;
   }
 };
+
 
 export const MESSAGE_REPOSITORY = {
   createOne,

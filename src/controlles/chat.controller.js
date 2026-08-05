@@ -128,10 +128,12 @@ const onGetShareMedia = async (req, res, next) => {
     const { conversationId } = req.params;
     const { limit = 20, skip = 0 } = req.query;
 
+    const currentUserId = req.user.id;
     const messages = await CHAT_SERVICE.onGetShareMedia({
       conversationId,
       limit: Number(limit),
       skip: Number(skip),
+      currentUserId,
     });
 
     return res.status(200).json({
@@ -147,10 +149,12 @@ const onGetShareFiles = async (req, res, next) => {
     const { conversationId } = req.params;
     const { limit = 20, skip = 0 } = req.query;
 
+    const currentUserId = req.user.id;
     const messages = await CHAT_SERVICE.onGetShareFiles({
       conversationId,
       limit: Number(limit),
       skip: Number(skip),
+      currentUserId,
     });
 
     return res.status(200).json({
@@ -166,10 +170,12 @@ const onGetShareLinks = async (req, res, next) => {
     const { conversationId } = req.params;
     const { limit = 20, skip = 0 } = req.query;
 
+    const currentUserId = req.user.id;
     const messages = await CHAT_SERVICE.onGetShareLinks({
       conversationId,
       limit: Number(limit),
       skip: Number(skip),
+      currentUserId,
     });
 
     return res.status(200).json({

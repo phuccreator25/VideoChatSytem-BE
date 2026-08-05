@@ -1,13 +1,14 @@
 import { MESSAGE_REPOSITORY } from "../../repository/message.repository.js";
 
-export const onGetShareMedia = async ({ conversationId, limit, skip }) => {
+export const onGetShareMedia = async ({ conversationId, limit, skip, currentUserId }) => {
   try {
     if (!conversationId) return;
 
     const messages = await MESSAGE_REPOSITORY.onGetShareMedia(
       conversationId,
       limit,
-      skip
+      skip,
+      currentUserId
     );
 
     return messages;
@@ -16,14 +17,15 @@ export const onGetShareMedia = async ({ conversationId, limit, skip }) => {
   }
 };
 
-export const onGetShareFiles = async ({ conversationId, limit, skip }) => {
+export const onGetShareFiles = async ({ conversationId, limit, skip, currentUserId }) => {
   try {
     if (!conversationId) return;
 
     const messages = await MESSAGE_REPOSITORY.onGetShareFiles(
       conversationId,
       limit,
-      skip
+      skip,
+      currentUserId
     );
 
     return messages;
@@ -32,14 +34,15 @@ export const onGetShareFiles = async ({ conversationId, limit, skip }) => {
   }
 };
 
-export const onGetShareLinks = async ({ conversationId, limit, skip }) => {
+export const onGetShareLinks = async ({ conversationId, limit, skip, currentUserId }) => {
   try {
     if (!conversationId) return;
 
     const messages = await MESSAGE_REPOSITORY.onGetShareLinks(
       conversationId,
       limit,
-      skip
+      skip,
+      currentUserId
     );
 
     return messages;

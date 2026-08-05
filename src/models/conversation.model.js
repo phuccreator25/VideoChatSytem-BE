@@ -51,6 +51,10 @@ const COLLECTION_CONVERSATION_SCHEMA = Joi.object({
   status: Joi.string()
     .valid(...Object.values(conversationStatus))
     .default(conversationStatus.ACTIVE),
+  
+  deletedBy: Joi.array()
+    .items(Joi.string().trim())
+    .default([]),
 
   createdAt: Joi.date().default(() => new Date()),
   updatedAt: Joi.date().allow(null).default(null),

@@ -3,7 +3,6 @@ import { MESSAGE_REPOSITORY } from "../repository/message.repository.js";
 import { uploadBufferToCloudinary } from "../helper/uploadBuffer.js";
 import { redisConnection } from "../queues/uploadFileQueue.js";
 import { emitNewMessages } from "../sockets/emitters/messages.emitter.js";
-import { status } from "../data/user.data.js";
 import { MESSAGE_DELIVERY_REPOSITORY } from "../repository/messageDeliveries.repository.js";
 import { isUserOnline } from "../sockets/socketStore.js";
 
@@ -38,6 +37,8 @@ export const fileUploadWorker = new Worker(
         folder: "Chat_System_Attachments",
         resource_type: "auto",
         public_id: `${messageId}-${attachmentId}`,
+        format: "webp",
+        quality: 'auto'
       });
 
       await MESSAGE_REPOSITORY.updateAttachmentAfterUpload({

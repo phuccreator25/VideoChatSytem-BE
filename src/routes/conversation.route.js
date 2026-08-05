@@ -12,5 +12,6 @@ conversationRouter.get('/conversations/pin-messages/:conversationId', authMiddle
 conversationRouter.get('/conversations/:conversationId', authMiddleware, CONVERSATION_CONTROLLER.onGetConversationById)
 
 conversationRouter.post('/conversations/more-messages', authMiddleware, CONVERSATION_CONTROLLER.onGetMoreMessages)
+conversationRouter.delete('/conversations/:conversationId', authMiddleware, CONVERSATION_CONTROLLER.onDeleteConversation)
 
 export default conversationRouter

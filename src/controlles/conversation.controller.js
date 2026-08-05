@@ -126,6 +126,24 @@ const onGetMoreMessages = async (req, res, next) => {
   }
 };
 
+const onDeleteConversation = async(req, res, next) => {
+  try {
+    const {conversationId} = req.params;
+    const currentUserId = req.user.id;
+
+    const result = await CONVERSATION_SERVICE.onDeleteConversation({
+      conversationId,
+      currentUserId,
+    });
+
+    return res.status(200).json({
+      data: result,
+    });
+  } catch (error) {
+    next(error)
+  }
+}
+
 export const CONVERSATION_CONTROLLER = {
   onGetOrCreateConversation,
   onGetConversationById,
@@ -134,4 +152,5 @@ export const CONVERSATION_CONTROLLER = {
   onGetPinMessages,
   onDeletePinMessages,
   onGetMoreMessages,
+  onDeleteConversation
 };
