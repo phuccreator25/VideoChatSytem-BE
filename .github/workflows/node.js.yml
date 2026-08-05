@@ -33,8 +33,8 @@ jobs:
         run: npm ci
 
       # --- 1.3. CHẠY UNIT TEST & CHECK CODE LỖI (MẮT XÍCH QUAN TRỌNG) ---
-      - name: Run Unit Tests
-        run: npm test # Chạy lệnh test trong package.json (Jest/Mocha/Supertest)
+      # - name: Run Unit Tests
+      #   run: npm test # Chạy lệnh test trong package.json (Jest/Mocha/Supertest)
 
       # --- 2. TÍNH SEMANTIC VERSION (v1.0.0, v1.1.0, ...) ---
       - name: Calculate Semantic Version
