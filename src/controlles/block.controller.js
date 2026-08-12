@@ -30,6 +30,19 @@ const onUnblock = async(req, res, next) => {
     }
 }
 
+const onGetListBlockUser = async(req, res, next) => {
+    try {
+        const currentUserId = req.user.id
+        const blocks = await BLOCK_SERVICE.onGetListBlockUser({currentUserId})
+
+        return res.status(200).json({
+            data: blocks
+        })
+    } catch (error) {
+        next(error)
+    }
+}
+
 export const BLOCK_CONTROLLER = {
-    onBlock, onUnblock
+    onBlock, onUnblock, onGetListBlockUser
 }

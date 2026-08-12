@@ -293,6 +293,7 @@ const findListByUserId = async (currentUserId) => {
                 fullname: 1,
                 avatar: 1,
                 status: 1,
+                showOnlineStatus: 1,
               },
             },
           ],
@@ -399,6 +400,7 @@ const findListByUserId = async (currentUserId) => {
           },
           avatar: "$otherUser.avatar",
           userStatus: "$otherUser.status",
+          showOnlineStatus: "$otherUser.showOnlineStatus",
           lastMessage: 1,
           lastMessageAt: 1,
           createdAt: 1,
@@ -415,17 +417,28 @@ const findListByUserId = async (currentUserId) => {
     ])
     .toArray();
 
+  const currentUser = await GET_DB()
+    .collection(USER_MODEL.COLECTION_USER_NAME)
+    .findOne({ _id: new ObjectId(currentUserId) }, { projection: { showOnlineStatus: 1 } });
+
+  const currentUserShowOnline = currentUser?.showOnlineStatus !== false;
+
   return conversations.map((item, index) => {
     const displayName = item.displayName || "Unknown";
     const timeSource =
       item.lastMessage?.createdAt || item.lastMessageAt || item.createdAt;
+
+    const isOtherUserOnline =
+      currentUserShowOnline &&
+      item.showOnlineStatus !== false &&
+      isUserOnline(item.userId);
 
     return {
       id: item.conversationId,
       name: displayName,
       avatar: item.avatar || "",
       initials: buildInitials(displayName),
-      status: isUserOnline(item.userId) ? "online" : "offline",
+      status: isOtherUserOnline ? "online" : "offline",
       preview: previewByMessage(item.lastMessage),
       time: formatConversationTime(timeSource),
       type: item.lastMessage?.type === "image" ? "image" : "text",

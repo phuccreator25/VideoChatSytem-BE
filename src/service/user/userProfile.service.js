@@ -1,7 +1,13 @@
 import { USER_REPOSITORY } from "../../repository/user.repository.js";
+import { USER_MODEL } from "../../models/user.model.js";
+import { DEVICE_SESSION_REPOSITORY } from "../../repository/deviceSession.repository.js";
+import { emitBanSessionEvent, emitOnlineUsers, emitPresenceChanged } from "../../sockets/emitters/auth.emitter.js";
 import bcrypt from "bcrypt";
 import cloudinary from "../../config/cloudinary.js";
 import { uploadBufferToCloudinary } from "../../helper/uploadBuffer.js";
+import { eventUserPresenceStatus } from "./userPresence.service.js";
+import { isUserOnline } from "../../sockets/socketStore.js";
+import { CONTACT_SERVICE } from "../contacts.service.js";
 
 const getPublicIdAvatar = (url) => {
   if (!url) return null;
@@ -16,18 +22,20 @@ const getPublicIdAvatar = (url) => {
   return publicId;
 };
 
-export const onGetUsers = async (payload) => {
+export const onGetUserById = async (payload) => {
   try {
-    const users = await USER_REPOSITORY.findById(payload.id);
-    return users;
+    return await USER_REPOSITORY.findById(payload.id);
   } catch (error) {
     console.log("GET DATA ", error);
     throw error;
   }
 };
 
-export const onUpdateUser = async ({ _id, payload }) => {
+
+export const onUpdateUser = async ({ _id, sessionId, payload }) => {
   try {
+    console.log(payload);
+    
     const user = await USER_REPOSITORY.findById(_id);
     if (!user) throw new Error("Không tìm thấy tài khoản cần cập nhật");
 
@@ -40,11 +48,16 @@ export const onUpdateUser = async ({ _id, payload }) => {
     if (payload.username !== undefined) {
       updateData.username = payload.username;
     }
+      
+
+    let isPasswordChanged = false;
 
     if (payload.password) {
       if (!payload.currentPass) {
         throw new Error("Vui lòng nhập mật khẩu hiện tại");
       }
+
+      USER_MODEL.validatePassword(payload.password);
 
       const isMatch = await bcrypt.compare(payload.currentPass, user.password);
       if (!isMatch) {
@@ -54,6 +67,7 @@ export const onUpdateUser = async ({ _id, payload }) => {
       const saltRounds = 10;
       const hashedPassword = await bcrypt.hash(payload.password, saltRounds);
       updateData.password = hashedPassword;
+      isPasswordChanged = true;
     }
 
     if (payload.file) {
@@ -76,10 +90,41 @@ export const onUpdateUser = async ({ _id, payload }) => {
       updateData.avatar = upload.secure_url;
     }
 
-    return await USER_REPOSITORY.updateById({
+    const updatedUser = await USER_REPOSITORY.updateById({
       _id,
       data: updateData,
     });
+
+    if (isPasswordChanged && sessionId) {
+      const otherSessions = await DEVICE_SESSION_REPOSITORY.findMany({
+        userId: _id.toString(),
+        sessionId: { $ne: sessionId },
+        revokedAt: null,
+      });
+
+      if (otherSessions.length > 0) {
+        const now = new Date();
+        await DEVICE_SESSION_REPOSITORY.updateMany(
+          {
+            userId: _id.toString(),
+            sessionId: { $ne: sessionId },
+            revokedAt: null,
+          },
+          {
+            revokedAt: now,
+            updatedAt: now,
+          }
+        );
+
+        otherSessions.forEach((s) => {
+          emitBanSessionEvent(_id.toString(), s.sessionId, {
+            message: "Mật khẩu của bạn đã được thay đổi. Vui lòng đăng nhập lại!",
+          });
+        });
+      }
+    }
+
+    return updatedUser;
   } catch (error) {
     console.log("UPDATE USER: ", error);
     throw error;

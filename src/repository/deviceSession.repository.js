@@ -25,13 +25,28 @@ const updateOne = async(filters, updatedData) => {
                         )             
 }
 
-const findMany = async (filters = {}) => {
+const findMany = async (filters = {}, options = {}) => {
+  let cursor = GET_DB()
+    .collection(DEVICE_SESSION_MODEL.COLECTION_DEVICE_SESSION_NAME)
+    .find(filters);
+
+  if (options.sort) {
+    cursor = cursor.sort(options.sort);
+  }
+
+  return await cursor.toArray();
+};
+
+const updateMany = async (filters, updatedData) => {
   return await GET_DB()
     .collection(DEVICE_SESSION_MODEL.COLECTION_DEVICE_SESSION_NAME)
-    .find(filters)
-    .toArray();
+    .updateMany(filters, { $set: updatedData });
 };
 
 export const DEVICE_SESSION_REPOSITORY = {
-    findOne, createOne, updateOne, findMany
-}
+  findOne,
+  createOne,
+  updateOne,
+  findMany,
+  updateMany,
+};

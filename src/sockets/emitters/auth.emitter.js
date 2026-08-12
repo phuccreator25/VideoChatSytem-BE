@@ -1,4 +1,4 @@
-import { emitToUser } from "../socketStore.js";
+import { emitToSession, emitToUser } from "../socketStore.js";
 
 export const emitOnlineUsers = (userId, userIds) => {
  emitToUser(userId, "presence:online_users", userIds);
@@ -10,4 +10,8 @@ export const emitPresenceChanged = (userId, payload) => {
 
 export const emitAuthEventToUser = (userId, eventName, payload) => {
   emitToUser(userId, eventName, payload);
+};
+
+export const emitBanSessionEvent = (userId, sessionId, payload) => {
+  emitToSession(userId, sessionId, "auth:session_banned", payload);
 };

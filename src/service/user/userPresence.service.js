@@ -31,28 +31,11 @@ export const onHandleUserConnected = async ({ userId, sessionId, socket }) => {
     lastSeenAt: null,
   });
 
-  const currentUser = await USER_REPOSITORY.findById(userId);
-  const initialOnlineContactIds = await CONTACT_SERVICE.onGetContactOfUserOnline(userId);
+  const onlineContacts = await CONTACT_SERVICE.onGetContactOfUserOnline(userId);
 
-  emitOnlineUsers(userId, initialOnlineContactIds);
+  emitOnlineUsers(userId, onlineContacts);
 
-  await Promise.all(
-    initialOnlineContactIds.map(async (contact) => {
-      const contactRecord = await CONTACTS_REPOSITORY.findContactItem(contact.userId, userId);
-
-      const displayName = (contactRecord?.nickname && contactRecord.nickname.trim())
-        ? contactRecord.nickname
-        : currentUser?.fullname;
-
-      emitPresenceChanged(contact.userId, {
-        userId,
-        name: displayName,
-        avatar: currentUser?.avatar,
-        isOnline: true,
-        lastSeenAt: null,
-      });
-    })
-  );
+  await eventUserPresenceStatus({ userId, isOnline: true, lastSeenAt: null });
 };
 
 export const onHandleUserDisconnected = async ({ userId, sessionId, socket }) => {
@@ -89,30 +72,32 @@ export const onHandleUserDisconnected = async ({ userId, sessionId, socket }) =>
         });
       }
 
-      const currentUser = await USER_REPOSITORY.findById(userId);
-      const onlineContacts = await CONTACT_SERVICE.onGetContactOfUserOnline(userId);
-
-      // Phát sự kiện offline song song bằng Promise.all
-      await Promise.all(
-        onlineContacts.map(async (contact) => {
-          const contactRecord = await CONTACTS_REPOSITORY.findContactItem(contact.userId, userId);
-
-          const displayName = (contactRecord?.nickname && contactRecord.nickname.trim())
-            ? contactRecord.nickname
-            : currentUser?.fullname;
-
-          emitPresenceChanged(contact.userId, {
-            userId,
-            name: displayName,
-            avatar: currentUser?.avatar,
-            isOnline: false,
-            lastSeenAt,
-          });
-        })
-      );
+      await eventUserPresenceStatus({ userId, isOnline: false, lastSeenAt });
     }, 10000); 
 
     disconnectTimers.set(userId, timer);
   }
-};
+}
 
+
+export const eventUserPresenceStatus = async ({ userId, isOnline, lastSeenAt = null }) => {
+  const currentUser = await USER_REPOSITORY.findById(userId);
+  const onlineContacts = await CONTACT_SERVICE.onGetContactOfUserOnline(userId);
+  
+  if (onlineContacts.length === 0) return;
+  await Promise.all(
+    onlineContacts.map(async (contact) => {
+      const contactRecord = await CONTACTS_REPOSITORY.findContactItem(contact.userId, userId);
+      const displayName = (contactRecord?.nickname && contactRecord.nickname.trim())
+        ? contactRecord.nickname
+        : currentUser?.fullname;
+      emitPresenceChanged(contact.userId, {
+        userId,
+        name: displayName,
+        avatar: currentUser?.avatar,
+        isOnline,
+        lastSeenAt,
+      });
+    })
+  );
+};

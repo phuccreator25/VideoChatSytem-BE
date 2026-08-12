@@ -29,26 +29,26 @@ const SERVER = async () => {
       lastSeenAt: new Date(),
       updatedAt: new Date(),
     }
-  )
+  );
 
   app.use(cors({
     origin: [
       'http://localhost:5173',
       'http://127.0.0.1:5173',
-      'http://localhost:30080',
-      'http://127.0.0.1:30080',
+      'http://localhost:30081',
+      'http://127.0.0.1:30081',
       'https://videochatsystem-fe.vercel.app',
       'http://chat-app.test'
     ],
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
     credentials: true
-  }))
+  }));
 
   //   app.use(express.json())
-  app.use(cookieParser())
+  app.use(cookieParser());
 
-  app.use(arjectProtection)
+  app.use(arjectProtection);
 
   app.use('/api', userRouter)
   app.use('/api', invitationRouter)

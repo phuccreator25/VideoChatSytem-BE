@@ -6,6 +6,41 @@ import { emitNewMessages } from "../sockets/emitters/messages.emitter.js";
 import { MESSAGE_DELIVERY_REPOSITORY } from "../repository/messageDeliveries.repository.js";
 import { isUserOnline } from "../sockets/socketStore.js";
 
+const getCloudinaryOptions = (mimeType, fileName) => {
+  const lowerMime = (mimeType || "").toLowerCase();
+  const lowerName = (fileName || "").toLowerCase();
+
+  const isImage =
+    lowerMime.startsWith("image/") ||
+    /\.(jpg|jpeg|png|gif|webp|svg|bmp)$/i.test(lowerName);
+
+  const isVideo =
+    lowerMime.startsWith("video/") ||
+    /\.(mp4|webm|mov|avi|mkv)$/i.test(lowerName);
+
+  const isAudio =
+    lowerMime.startsWith("audio/") ||
+    /\.(mp3|wav|ogg|m4a|aac)$/i.test(lowerName);
+
+  if (isImage) {
+    return {
+      resource_type: "image",
+      format: "webp",
+      quality: "auto",
+    };
+  }
+
+  if (isVideo || isAudio) {
+    return {
+      resource_type: "video",
+    };
+  }
+
+  return {
+    resource_type: "raw",
+  };
+};
+
 export const fileUploadWorker = new Worker(
   "file-upload-queue", // Phải trùng với tên queue đã tạo
   async (job) => {
@@ -33,12 +68,12 @@ export const fileUploadWorker = new Worker(
         ? file
         : Buffer.from(file.data);
 
+      const cloudinaryOptions = getCloudinaryOptions(mimeType, fileName);
+
       const upload = await uploadBufferToCloudinary(normalizedBuffer, {
         folder: "Chat_System_Attachments",
-        resource_type: "auto",
         public_id: `${messageId}-${attachmentId}`,
-        format: "webp",
-        quality: 'auto'
+        ...cloudinaryOptions,
       });
 
       await MESSAGE_REPOSITORY.updateAttachmentAfterUpload({

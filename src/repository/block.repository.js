@@ -1,5 +1,7 @@
+import { ObjectId } from "mongodb";
 import { GET_DB } from "../config/database.js";
 import { BLOCK_MODEL } from "../models/block.model.js"
+import { USER_MODEL } from "../models/user.model.js";
 
 const createOne = async(data) => {
     const validData = await BLOCK_MODEL.validateData(data);
@@ -57,6 +59,56 @@ const findBlockStatusBetweenUsers = async (currentUserId, otherUserId) => {
 };
 
 
+const findMany = async({ blockerId }) => {
+  const blocks = await GET_DB()
+    .collection(BLOCK_MODEL.COLLECTION_BLOCK_NAME)
+    .aggregate([
+      {
+        $match: {
+          blockerId: blockerId,
+          status: "blocked"
+        }
+      },
+      {
+        $lookup: {
+          from: USER_MODEL.COLECTION_USER_NAME,
+          let: { blockedId: "$blockedId" },
+          pipeline: [
+            {
+              $match: {
+                $expr: { $eq: ["$_id", { $toObjectId: "$$blockedId" }] }
+              }
+            }
+          ],
+          as: "userBlock",
+        },
+      },
+      // Chuyển về dạng Object
+      {
+        $unwind: {
+          path: "$userBlock",
+          preserveNullAndEmptyArrays: true
+        }
+      },
+      {
+        $project: {
+          _id: 0,
+          blockId: "$_id",
+          userId: "$blockedId",
+          name: '$userBlock.fullname',
+          avatar: '$userBlock.avatar',
+          blockAt: '$createdAt',
+        }
+      }
+    ]).toArray();
+
+    return blocks.map(block => ({
+        ...block,
+        blockId: block.blockId.toString(),
+        blockAt: block.blockAt.toString()
+    }))
+}
+
 export const BLOCK_REPOSITORY = {
-    createOne, findByBlock, updateOne, findBlockStatusBetweenUsers
+    createOne, findByBlock, updateOne, findBlockStatusBetweenUsers, findMany
 }

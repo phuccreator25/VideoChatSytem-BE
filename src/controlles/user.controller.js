@@ -190,9 +190,9 @@ const onRefreshToken = async (req, res, next) => {
   }
 }
 
-const onGetUsers = async (req, res, next) => {
+const onGetUserById = async (req, res, next) => {
   try {
-    const users = await USER_SERVICE.onGetUsers(req.user);
+    const users = await USER_SERVICE.onGetUserById(req.user);
     return res.status(200).json({
       data: users,
     });
@@ -205,12 +205,13 @@ const onUpdate = async (req, res, next) => {
   try {
     const user = await USER_SERVICE.onUpdateUser({
       _id: req.user.id,
-      payload: req.body
+      sessionId: req.user.sessionId,
+      payload: req.body,
     });
 
     return res.status(200).json({
       message: "Cập nhật thành công",
-      data: user
+      data: user,
     });
   } catch (error) {
     next(error);
@@ -255,6 +256,56 @@ const onSearchUser = async (req, res, next) => {
   }
 }
 
+const onGetListSession = async(req, res, next) => {
+  try {
+      const currentUserId = req.user.id;
+      const currentSessionId = req.user.sessionId;
+      
+      const sessions = await USER_SERVICE.onGetListSession({ currentUserId, currentSessionId });
+
+      return res.status(200).json({
+        data: sessions
+      });
+  } catch (error) {
+    next(error);
+  }
+};
+
+const onBanSession = async (req, res, next) => {
+  try {
+    const sessionId = req.params.sessionId;
+    const currentUserId = req.user.id;
+    const currentSessionId = req.user.sessionId;
+
+    await USER_SERVICE.onBanSession({ sessionId, currentUserId, currentSessionId });
+
+    return res.status(200).json({
+      message: "Đã chặn phiên này",
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+const onBanAllOtherSessions = async (req, res, next) => {
+  try {
+    const currentUserId = req.user.id;
+    const currentSessionId = req.user.sessionId;
+
+    const result = await USER_SERVICE.onBanAllOtherSessions({
+      currentUserId,
+      currentSessionId,
+    });
+
+    return res.status(200).json({
+      message: "Đã thu hồi tất cả các phiên khác",
+      data: result,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 export const USER_CONTROLLER = {
   onRegister,
   onActivateAccount,
@@ -262,9 +313,12 @@ export const USER_CONTROLLER = {
   onLogOut,
   onForgotPassword,
   onResetPassword,
-  onGetUsers,
+  onGetUserById,
   onRefreshToken,
   onUpdate,
   onUpdateAvatar,
-  onSearchUser
+  onSearchUser,
+  onGetListSession,
+  onBanSession,
+  onBanAllOtherSessions,
 };

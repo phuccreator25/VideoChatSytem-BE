@@ -94,7 +94,8 @@ const onGetConversationById = async ({ conversationId, currentUserId }) => {
     throw new Error("You are not a participant of this conversation");
   }
 
-  const [userData, contactData, messages, Invitation, pinMessages, block] = await Promise.all([
+  const [currentUser, userData, contactData, messages, Invitation, pinMessages, block] = await Promise.all([
+    USER_REPOSITORY.findById(currentUserId),
     USER_REPOSITORY.findById(otherUserId),
     CONTACTS_REPOSITORY.findContactItem(currentUserId, otherUserId),
     MESSAGE_REPOSITORY.findByConversationId(conversationId, currentUserId, {

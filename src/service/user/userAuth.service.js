@@ -2,11 +2,13 @@ import { EXP_REFRESH_TOKEN, EXP_TOKEN } from "../../config/auth.js";
 import { sendMail } from "../../config/sendMail.js";
 import { DEVICE_SESSION_REPOSITORY } from "../../repository/deviceSession.repository.js";
 import { USER_REPOSITORY } from "../../repository/user.repository.js";
+import { USER_MODEL } from "../../models/user.model.js";
 import bcrypt from "bcrypt";
 import { randomBytes } from "crypto";
 import jwt from "jsonwebtoken";
 import env from "../../config/env.js";
 import { disconnectUserSession } from "../../sockets/socketStore.js";
+import { emitBanSessionEvent } from "../../sockets/emitters/auth.emitter.js";
 
 const addDay = (days) => {
   const date = new Date();
@@ -296,6 +298,8 @@ export const onResetPassword = async (payload) => {
     if (isAccount.expiredVerifyTokenAt < new Date())
       throw new Error("The password change deadline has passed.");
 
+    USER_MODEL.validatePassword(payload.password);
+
     const saltRounds = 10;
     const hashedPassword = await bcrypt.hash(payload.password, saltRounds);
 
@@ -351,6 +355,114 @@ export const onRefreshToken = async (refreshToken) => {
     return await handleUpdateDeviceSession(data);
   } catch (error) {
     console.log("REFRESH TOKEN ", error);
+    throw error;
+  }
+};
+
+export const onGetListSession = async ({ currentUserId, currentSessionId }) => {
+  try {
+    if (!currentUserId) return [];
+
+    const sessions = await DEVICE_SESSION_REPOSITORY.findMany(
+      {
+        userId: currentUserId.toString(),
+        revokedAt: null,
+        expiredAt: { $gt: new Date() },
+      },
+      {
+        sort: { lastSeenAt: -1 },
+      }
+    );
+
+    const formattedSessions = sessions.map((session) => ({
+      ...session,
+      isCurrentSession: Boolean(currentSessionId && session.sessionId === currentSessionId),
+    }));
+
+    formattedSessions.sort((a, b) => (b.isCurrentSession ? 1 : 0) - (a.isCurrentSession ? 1 : 0));
+
+    return formattedSessions;
+  } catch (error) {
+    throw error;
+  }
+};
+
+export const onBanSession = async ({ sessionId, currentUserId, currentSessionId }) => {
+  try {
+    if (!sessionId) throw new Error("Session ID không tồn tại");
+
+    if (currentSessionId && sessionId === currentSessionId) {
+      throw new Error("Không thể tự thu hồi phiên đăng nhập hiện tại!");
+    }
+
+    const session = await DEVICE_SESSION_REPOSITORY.findOne({
+      sessionId,
+      userId: currentUserId.toString(),
+      revokedAt: null,
+    });
+
+    if (!session) {
+      throw new Error("Phiên đăng nhập của bạn không tồn tại");
+    }
+
+    const dataUpdate = {
+      revokedAt: new Date(),
+      updatedAt: new Date(),
+    };
+
+    const data = await DEVICE_SESSION_REPOSITORY.updateOne(
+      { sessionId },
+      dataUpdate,
+    );
+
+    emitBanSessionEvent(currentUserId, sessionId, {
+      message: "Phiên đăng nhập của bạn đã bị thu hồi",
+    });
+
+    return data;
+  } catch (error) {
+    console.error("BAN SESSION ERROR:", error);
+    throw error;
+  }
+};
+
+export const onBanAllOtherSessions = async ({ currentUserId, currentSessionId }) => {
+  try {
+    if (!currentUserId || !currentSessionId) {
+      throw new Error("Thông tin xác thực không hợp lệ");
+    }
+
+    const otherSessions = await DEVICE_SESSION_REPOSITORY.findMany({
+      userId: currentUserId.toString(),
+      sessionId: { $ne: currentSessionId },
+      revokedAt: null,
+    });
+
+    if (otherSessions.length === 0) {
+      throw new Error('Không có phiên khác để thu hồi');
+    }
+
+    await DEVICE_SESSION_REPOSITORY.updateMany(
+      {
+        userId: currentUserId.toString(),
+        sessionId: { $ne: currentSessionId },
+        revokedAt: null,
+      },
+      {
+        revokedAt: new Date(),
+        updatedAt: new Date(),
+      }
+    );
+
+    otherSessions.forEach((s) => {
+      emitBanSessionEvent(currentUserId, s.sessionId, {
+        message: "Tất cả các phiên đăng nhập khác của bạn đã bị thu hồi",
+      });
+    });
+
+    return otherSessions;
+  } catch (error) {
+    console.error("BAN ALL SESSIONS ERROR:", error);
     throw error;
   }
 };

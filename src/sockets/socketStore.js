@@ -160,14 +160,29 @@ export function emitToUser(userId, eventName, payload) {
   });
 }
 
+export function emitToSession(userId, sessionId, eventName, payload) {
+  if (!userId || !sessionId) return;
+
+  const userSessions = userSocketMap[userId];
+  if (!userSessions) return;
+
+  const sessionSockets = userSessions[sessionId];
+  if (!sessionSockets) return;
+
+  Object.values(sessionSockets).forEach((socket) => {
+    if (socket?.connected) {
+      socket.emit(eventName, payload);
+    }
+  });
+}
+
 // ==========================================
 // ACTIVE CALLS IN-MEMORY CACHE (RAM)
 // ==========================================
 const activeCallMap = new Map();
 
-/**
- * Thêm một hoặc nhiều thành viên vào phiên gọi của conversationId
- */
+// Thêm một hoặc nhiều thành viên vào phiên gọi của conversationId
+
 export function addCallParticipants(conversationId, userIds) {
   if (!conversationId || !userIds) return;
 
@@ -183,9 +198,7 @@ export function addCallParticipants(conversationId, userIds) {
   });
 }
 
-/**
- * Lấy danh sách các đối tác trong cuộc gọi (loại trừ currentUserId)
- */
+// Lấy danh sách các đối tác trong cuộc gọi (loại trừ currentUserId)
 export function getCallOtherParticipants(conversationId, currentUserId) {
   if (!conversationId) return [];
 
@@ -197,9 +210,7 @@ export function getCallOtherParticipants(conversationId, currentUserId) {
   );
 }
 
-/**
- * Xóa một thành viên khỏi phiên gọi
- */
+// Xóa một thành viên khỏi phiên gọi
 export function removeCallParticipant(conversationId, userId) {
   if (!conversationId || !userId) return;
 
@@ -212,9 +223,7 @@ export function removeCallParticipant(conversationId, userId) {
   }
 }
 
-/**
- * Dọn dẹp hoàn toàn phiên gọi của conversationId
- */
+// Dọn dẹp hoàn toàn phiên gọi của conversationId
 export function endCallSession(conversationId) {
   if (!conversationId) return;
   activeCallMap.delete(String(conversationId));

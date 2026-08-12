@@ -84,7 +84,13 @@ const onUnblock = async ({ currentUserId, UserBlockedId }) => {
     };
 };
 
+const onGetListBlockUser = async ({ currentUserId }) => {
+    if (!currentUserId) return;
+    return await BLOCK_REPOSITORY.findMany({ blockerId: currentUserId });
+};
+
 export const BLOCK_SERVICE ={
     onBlock,
-    onUnblock
+    onUnblock,
+    onGetListBlockUser
 }

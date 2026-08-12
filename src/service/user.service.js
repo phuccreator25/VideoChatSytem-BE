@@ -6,10 +6,13 @@ import {
   onForgotPassword,
   onResetPassword,
   onRefreshToken,
+  onGetListSession,
+  onBanSession,
+  onBanAllOtherSessions,
 } from "./user/userAuth.service.js";
 
 import {
-  onGetUsers,
+  onGetUserById,
   onUpdateUser,
   onSearchUser,
   onUpdateStatus,
@@ -27,11 +30,14 @@ export const USER_SERVICE = {
   onLogOut,
   onForgotPassword,
   onResetPassword,
-  onGetUsers,
+  onGetUserById,
   onRefreshToken,
   onUpdateUser,
   onSearchUser,
   onUpdateStatus,
   onHandleUserConnected,
   onHandleUserDisconnected,
+  onGetListSession,
+  onBanSession,
+  onBanAllOtherSessions,
 };

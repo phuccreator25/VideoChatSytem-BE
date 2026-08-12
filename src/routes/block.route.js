@@ -6,5 +6,6 @@ const blockRouter = Router()
 
 blockRouter.post('/blocks', authMiddleware, BLOCK_CONTROLLER.onBlock)
 blockRouter.put('/blocks/unBlock', authMiddleware, BLOCK_CONTROLLER.onUnblock)
+blockRouter.get('/blocks/list-block-user', authMiddleware, BLOCK_CONTROLLER.onGetListBlockUser)
 
 export default blockRouter

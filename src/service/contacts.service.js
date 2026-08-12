@@ -122,7 +122,11 @@ const onGetContactOfUserOnline = async (userId) => {
   const contacts = await CONTACTS_REPOSITORY.findMany(userId);
 
   const onlineContacts = contacts
-    .filter((contact) => isUserOnline(contact.userId) && !contact.isBlocked && contact.userId !== userId)
+    .filter((contact) => 
+      isUserOnline(contact.userId) && 
+      !contact.isBlocked && 
+      contact.userId !== userId
+    )
     .map((contact) => ({
       userId: contact.userId,
       name: (contact.nickname && contact.nickname.trim())
