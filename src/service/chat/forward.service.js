@@ -57,7 +57,6 @@ export const onForwardMessageSingle = async ({ messageId, targetUserId, senderId
       attachmentId: new ObjectId().toString(),
       tempAttachmentId: null,
       fileUrl: att.fileUrl,
-      publicId: att.publicId,
       fileName: att.fileName,
       fileSize: att.fileSize,
       mimeType: att.mimeType,

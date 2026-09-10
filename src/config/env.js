@@ -22,10 +22,6 @@ const env = {
 
   NODE_ENV: process.env.NODE_ENV,
 
-  CLOUDINARY_CLOUD_NAME: process.env.CLOUDINARY_CLOUD_NAME,
-  CLOUDINARY_API_KEY: process.env.CLOUDINARY_API_KEY,
-  CLOUDINARY_API_SECRET: process.env.CLOUDINARY_API_SECRET,
-
   ARCJET_KEY: process.env.ARCJET_KEY,
   ARCJET_ENV: process.env.ARCJETPORT,
 
@@ -37,6 +33,11 @@ const env = {
 
   URL_INGESTION_CALL: process.env.URL_INGESTION_CALL,
   URL_QUERY_CALL: process.env.URL_QUERY_CALL,
+
+  S3_ACCESS_KEY: process.env.S3_ACCESS_KEY,
+  S3_SECRET_ACCESS_KEY: process.env.S3_SECRET_ACCESS_KEY,
+  S3_REGION: process.env.S3_REGION,
+  S3_BUCKET: process.env.S3_BUCKET_NAME,
 }
 
 export default env

@@ -21,7 +21,6 @@ const COLLECTION_MESSAGE_SCHEMA = Joi.object({
         tempAttachmentId: Joi.string().trim().allow(null, "").default(null),
 
         fileUrl: Joi.string().trim().allow(null, "").default(null),
-        publicId: Joi.string().trim().allow(null, "").default(null),
 
         fileName: Joi.string().trim().required(),
         fileSize: Joi.number().integer().min(0).required(),

@@ -259,6 +259,46 @@ const buildMessagePipeline = ({
       },
     },
     {
+      $addFields: {
+        attachments: {
+          $cond: [
+            {
+              $and: [
+                { $ne: [currentUserIdStr, null] },
+                { $ne: ["$senderId", currentUserIdStr] },
+              ],
+            },
+            {
+              $filter: {
+                input: { $ifNull: ["$attachments", []] },
+                as: "att",
+                cond: { $eq: ["$$att.status", "done"] },
+              },
+            },
+            "$attachments",
+          ],
+        },
+      },
+    },
+    {
+      $match: {
+        $or: [
+          // 1. Người gửi hoặc query hệ thống -> Giữ lại tất cả tin nhắn
+          { senderId: currentUserIdStr },
+          { $expr: { $eq: [currentUserIdStr, null] } },
+
+          // 2. Người nhận -> Nếu type là "file", bắt buộc mảng attachments (đã lọc "done") phải có ít nhất 1 file (> 0)
+          {
+            senderId: { $ne: currentUserIdStr },
+            $or: [
+              { type: { $ne: "file" } },
+              { "attachments.0": { $exists: true } },
+            ],
+          },
+        ],
+      },
+    },
+    {
       $project: {
         _id: 0,
         id: 1,
@@ -339,13 +379,14 @@ const findByConversationId = async (
     .toArray();
 };
 
-const findMessageAfterSend = async (messageId, session = null) => {
+const findMessageAfterSend = async (messageId, session = null, currentUserId = null) => {
   const options = session ? { session } : undefined;
 
   const pipeline = buildMessagePipeline({
     match: {
       _id: new ObjectId(messageId),
     },
+    currentUserId,
   });
 
   const result = await GET_DB()
@@ -382,34 +423,6 @@ const updateAttachmentStatus = async ({
     );
 };
 
-const updateAttachmentAfterUpload = async ({
-  messageId,
-  attachmentId,
-  fileUrl,
-  publicId,
-  session = null,
-}) => {
-  const options = session ? { session } : {};
-
-  return await GET_DB()
-    .collection(COLLECTION_NAME)
-    .updateOne(
-      {
-        _id: new ObjectId(messageId),
-        "attachments.attachmentId": attachmentId,
-      },
-      {
-        $set: {
-          "attachments.$.fileUrl": fileUrl,
-          "attachments.$.publicId": publicId,
-          "attachments.$.status": "done",
-          "attachments.$.updatedAt": new Date(),
-          updatedAt: new Date(),
-        },
-      },
-      options,
-    );
-};
 
 const findOne = async (filters = {}, session = null) => {
   return await GET_DB().collection(COLLECTION_NAME)
@@ -678,13 +691,31 @@ const searchMessagesGlobal = async (currentUserId, keyword, limit = 10) => {
   }
 };
 
+const updateAttachmentStatusByTempId = async ({ messageId, tempAttachmentId, status, fileUrl }) => {
+  try {
+    const filter = { "attachments.tempAttachmentId": tempAttachmentId };
+    if (messageId) filter._id = new ObjectId(messageId);
+
+    const updatedMessage = await GET_DB().collection(COLLECTION_NAME).findOneAndUpdate(
+      filter,
+      {
+        $set: { "attachments.$.status": status, "attachments.$.fileUrl": fileUrl },
+      },
+      { returnDocument: "after" }
+    );
+
+    return updatedMessage;
+  } catch (error) {
+    throw error;
+  }
+};
+
 
 export const MESSAGE_REPOSITORY = {
   createOne,
   findByConversationId,
   findMessageAfterSend,
   updateAttachmentStatus,
-  updateAttachmentAfterUpload,
   findOne,
   updateOne,
   searchMessages,
@@ -693,4 +724,5 @@ export const MESSAGE_REPOSITORY = {
   onGetShareFiles,
   onGetShareLinks,
   searchMessagesGlobal,
+  updateAttachmentStatusByTempId,
 };

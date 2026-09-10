@@ -2,8 +2,8 @@ import { Worker } from "bullmq";
 import { ObjectId } from "mongodb";
 import { emitUpdateLinkPreview } from "../sockets/emitters/messages.emitter.js";
 import { MESSAGE_REPOSITORY } from "../repository/message.repository.js";
-import { redisConnection } from "../queues/uploadFileQueue.js";
 import { CHAT_SERVICE } from "../service/chat.service.js";
+import { redisQueueConnection } from "../config/redis.js";
 
 export const getLinkPeviewWorker = new Worker(
     "link-preview-queue",
@@ -26,7 +26,7 @@ export const getLinkPeviewWorker = new Worker(
         }
     },
     {
-        connection: redisConnection,
+        connection: redisQueueConnection,
         concurrency: 3,
         stalledInterval: 300000,
         drainDelay: 60,

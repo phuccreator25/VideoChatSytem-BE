@@ -1,6 +1,6 @@
 import { Worker } from "bullmq";
-import { redisConnection } from "../queues/uploadFileQueue.js";
 import { CHAT_SERVICE } from "../service/chat.service.js";
+import { redisQueueConnection } from "../config/redis.js";
 
 export const sendMessageWorker = new Worker(
   "send-message-queue",
@@ -22,7 +22,7 @@ export const sendMessageWorker = new Worker(
     }
   },
   {
-    connection: redisConnection,
+    connection: redisQueueConnection,
     concurrency: 1, // Concurrency 1 guarantees sequential execution to avoid MongoDB write conflicts on conversation updates
     stalledInterval: 300000, // Check for stalled jobs every 5 minutes (reduces Upstash requests)
     drainDelay: 60,          // Wait 60 seconds when queue is empty before polling again

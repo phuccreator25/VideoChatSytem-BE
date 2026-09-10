@@ -3,24 +3,10 @@ import { USER_MODEL } from "../../models/user.model.js";
 import { DEVICE_SESSION_REPOSITORY } from "../../repository/deviceSession.repository.js";
 import { emitBanSessionEvent, emitOnlineUsers, emitPresenceChanged } from "../../sockets/emitters/auth.emitter.js";
 import bcrypt from "bcrypt";
-import cloudinary from "../../config/cloudinary.js";
-import { uploadBufferToCloudinary } from "../../helper/uploadBuffer.js";
 import { eventUserPresenceStatus } from "./userPresence.service.js";
 import { isUserOnline } from "../../sockets/socketStore.js";
 import { CONTACT_SERVICE } from "../contacts.service.js";
-
-const getPublicIdAvatar = (url) => {
-  if (!url) return null;
-
-  const parts = url.split("/upload/");
-  if (parts.length < 2) return null;
-
-  const pathWithVersion = parts[1];
-  const pathWithoutVersion = pathWithVersion.replace(/^v\d+\//, "");
-  const publicId = pathWithoutVersion.replace(/\.[^/.]+$/, "");
-
-  return publicId;
-};
+import { UPLOAD_S3 } from "../../helper/uploadS3.js";
 
 export const onGetUserById = async (payload) => {
   try {
@@ -34,8 +20,6 @@ export const onGetUserById = async (payload) => {
 
 export const onUpdateUser = async ({ _id, sessionId, payload }) => {
   try {
-    console.log(payload);
-    
     const user = await USER_REPOSITORY.findById(_id);
     if (!user) throw new Error("Không tìm thấy tài khoản cần cập nhật");
 
@@ -49,7 +33,6 @@ export const onUpdateUser = async ({ _id, sessionId, payload }) => {
       updateData.username = payload.username;
     }
       
-
     let isPasswordChanged = false;
 
     if (payload.password) {
@@ -70,24 +53,9 @@ export const onUpdateUser = async ({ _id, sessionId, payload }) => {
       isPasswordChanged = true;
     }
 
-    if (payload.file) {
-      if (user.avatar) {
-        const OldAvatar = getPublicIdAvatar(user.avatar);
-
-        if (OldAvatar) {
-          try {
-            await cloudinary.uploader.destroy(OldAvatar);
-          } catch (error) {
-            console.log("DELETE OLD AVATAR ERROR:", error);
-          }
-        }
-      }
-
-      const upload = await uploadBufferToCloudinary(payload.file.buffer, {
-        folder: "Chat_System_Avatars",
-      });
-
-      updateData.avatar = upload.secure_url;
+    if (payload.fileName) {
+      const avatarUrl = await UPLOAD_S3.onGetURL("avatar", _id, null, payload.fileName);
+      updateData.avatar = `${avatarUrl}?v=${Date.now()}`;
     }
 
     const updatedUser = await USER_REPOSITORY.updateById({

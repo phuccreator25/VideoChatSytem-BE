@@ -1,6 +1,6 @@
 import { Worker } from "bullmq";
 import { CALL_SERVICE } from "../service/call.service.js";
-import { redisConnection } from "../queues/uploadFileQueue.js";
+import { redisQueueConnection } from "../config/redis.js";
 
 export const speedToTextWorker = new Worker(
     "speed-to-text-queue",
@@ -17,7 +17,7 @@ export const speedToTextWorker = new Worker(
             console.error('SpeechToText Error in worker:', error);
         }
     }, {
-        connection: redisConnection,
+        connection: redisQueueConnection,
         concurrency: 5, // Số lượng job có thể xử lý đồng thời
         stalledInterval: 30000, // Kiểm tra job bị treo sau 30 giây
         drainDelay: 60

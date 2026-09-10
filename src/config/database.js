@@ -13,6 +13,8 @@ let db;
 
 export const connectDB = async () => {
   try {
+    console.log('Connecting DB');
+    
     await client.connect()
     db = client.db(env.DATABASE_NAME)
     console.log('Connect Database Success')

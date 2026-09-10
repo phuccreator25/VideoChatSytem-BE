@@ -3,9 +3,10 @@ import { CHAT_SERVICE } from "../service/chat.service.js";
 const onSendMessage = async (req, res, next) => {
   try {
     const messagePayload = req.body;
-    const files = req.files || []
+    const files = req.files || req.body.files || req.body.attachments || [];
     const { conversationId } = req.params;
     const currentUserId = req.user.id;
+    
 
     const message = await CHAT_SERVICE.onSendMessage({
       message: messagePayload,
@@ -15,6 +16,28 @@ const onSendMessage = async (req, res, next) => {
     });
 
     return res.status(201).json({
+      data: message,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+const onResendMessage = async (req, res, next) => {
+  try {
+    const messagePayload = req.body;
+    const files = req.files || req.body.files || req.body.attachments || [];
+    const { conversationId } = req.params;
+    const currentUserId = req.user.id;
+
+    const message = await CHAT_SERVICE.onResendMessage({
+      message: messagePayload,
+      files,
+      conversationId,
+      currentUserId,
+    });
+
+    return res.status(200).json({
       data: message,
     });
   } catch (error) {
@@ -218,6 +241,7 @@ const onSearchMessageGlobal = async (req, res, next) => {
 
 export const CHAT_CONTROLLER = {
   onSendMessage,
+  onResendMessage,
   onReactEmotion,
   onUnReactEmotion,
   onForwardMessage,

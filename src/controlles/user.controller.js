@@ -220,15 +220,9 @@ const onUpdate = async (req, res, next) => {
 
 const onUpdateAvatar = async (req, res, next) => {
   try {
-    if (!req.file) {
-      return res.status(400).json({
-        message: 'Không có file gửi lên'
-      })
-    }
-
     const user = await USER_SERVICE.onUpdateUser({
       _id: req.user.id,
-      payload: { file: req.file }
+      payload: { fileName: req.body.fileName }
     });
 
     return res.status(200).json({

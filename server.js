@@ -15,6 +15,7 @@ import chatRouter from './src/routes/chat.route.js'
 import { USER_REPOSITORY } from './src/repository/user.repository.js'
 import callRouter from './src/routes/call.route.js'
 import env from './src/config/env.js'
+import uploadRouter from './src/routes/upload.route.js'
 
 dotenv.config()
 
@@ -57,6 +58,7 @@ const SERVER = async () => {
   app.use('/api', conversationRouter)
   app.use('/api', chatRouter)
   app.use('/api', callRouter)
+  app.use('/api', uploadRouter)
 
   app.use((err, req, res, next) => {
     const statusCode = err.statusCode || 500
@@ -67,7 +69,6 @@ const SERVER = async () => {
   })
 
   try {
-    await import('./src/workers/uploadFileWorker.js')
     await import('./src/workers/shareMessageWorker.js')
     await import('./src/workers/getLinkPeviewWorker.js')
     await import('./src/workers/sendMessageWorker.js')

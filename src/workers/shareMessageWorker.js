@@ -1,6 +1,6 @@
 import { Worker } from "bullmq";
-import { redisConnection } from "../queues/uploadFileQueue.js";
 import { CHAT_SERVICE } from "../service/chat.service.js";
+import { redisQueueConnection } from "../config/redis.js";
 
 export const shareMessageWorker = new Worker(
     "share-message-queue",
@@ -15,7 +15,7 @@ export const shareMessageWorker = new Worker(
         });
     },
     {
-        connection: redisConnection,
+        connection: redisQueueConnection,
         concurrency: 3,
         stalledInterval: 300000,
         drainDelay: 60,
