@@ -1,11 +1,8 @@
 import { USER_REPOSITORY } from "../../repository/user.repository.js";
 import { USER_MODEL } from "../../models/user.model.js";
 import { DEVICE_SESSION_REPOSITORY } from "../../repository/deviceSession.repository.js";
-import { emitBanSessionEvent, emitOnlineUsers, emitPresenceChanged } from "../../sockets/emitters/auth.emitter.js";
+import { emitBanSessionEvent} from "../../sockets/emitters/auth.emitter.js";
 import bcrypt from "bcrypt";
-import { eventUserPresenceStatus } from "./userPresence.service.js";
-import { isUserOnline } from "../../sockets/socketStore.js";
-import { CONTACT_SERVICE } from "../contacts.service.js";
 import { UPLOAD_S3 } from "../../helper/uploadS3.js";
 
 export const onGetUserById = async (payload) => {
@@ -55,7 +52,8 @@ export const onUpdateUser = async ({ _id, sessionId, payload }) => {
 
     if (payload.fileName) {
       const avatarUrl = await UPLOAD_S3.onGetURL("avatar", _id, null, payload.fileName);
-      updateData.avatar = `${avatarUrl}?v=${Date.now()}`;
+      
+      updateData.avatar = avatarUrl;
     }
 
     const updatedUser = await USER_REPOSITORY.updateById({

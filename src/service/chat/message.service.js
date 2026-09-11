@@ -10,6 +10,7 @@ import { linkPreviewQueue, sendMessageQueue, sendMessageQueueEvents } from "../.
 import { BLOCK_REPOSITORY } from "../../repository/block.repository.js";
 import { CONVERSATION_MODEL } from "../../models/conversation.model.js";
 import { UPLOAD_SERVICE } from "../upload.service.js";
+import { validateFileCount } from "../../validations/upload.validation.js";
 
 const onSendMessageJob = async({ message, files, conversationId, currentUserId, isResend = false }) => {
   try {
@@ -301,7 +302,10 @@ export const processSendMessage = async ({
   try {
     const content = message?.content?.trim() || "";
     const hasGif = message?.gifUrl;
-    const hasFiles = (files || []).length > 0;
+    const fileList = files || [];
+    const hasFiles = fileList.length > 0;
+
+    validateFileCount(fileList, "message");
 
     if (!content && !hasFiles && !hasGif) {
       throw new Error("Please enter the message content");

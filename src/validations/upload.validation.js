@@ -31,8 +31,15 @@ const ALLOWED_MESSAGE_MIMES = [
   "audio/mpeg", "audio/x-wav", "audio/webm;codecs=opus", "audio/webm", "audio/ogg;codecs=opus", "audio/mp4", "audio/ogg", "audio/wav"
 ];
 
-const MAX_MESSAGE_FILE_SIZE = 1 * 1024 * 1024 * 1024; // 1 GB
-const MAX_AVATAR_FILE_SIZE = 5 * 1024 * 1024; // 5 MB
+export const MAX_MESSAGE_FILE_SIZE = 1 * 1024 * 1024 * 1024; // 1 GB
+export const MAX_AVATAR_FILE_SIZE = 5 * 1024 * 1024; // 5 MB
+export const MAX_MESSAGE_FILE_COUNT = 20;
+
+export const validateFileCount = (fileList = [], type = "message") => {
+  if (type === "message" && fileList.length > MAX_MESSAGE_FILE_COUNT) {
+    throw new Error(`Số lượng file tải lên tối đa là ${MAX_MESSAGE_FILE_COUNT} file mỗi lần`);
+  }
+};
 
 export const validateUploadFile = (file, type) => {
   const fileName = (file?.fileName || file?.name || "").trim();

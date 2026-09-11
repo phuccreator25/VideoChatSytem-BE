@@ -4,7 +4,7 @@ import { CONVERSATION_PARTICIPANT_REPOSITORY } from "../repository/conversationP
 import { MESSAGE_REPOSITORY } from "../repository/message.repository.js";
 import { MESSAGE_DELIVERY_REPOSITORY } from "../repository/messageDeliveries.repository.js";
 import { emitNewMessages } from "../sockets/emitters/messages.emitter.js";
-import { validateUploadFile } from "../validations/upload.validation.js";
+import { validateUploadFile, validateFileCount } from "../validations/upload.validation.js";
 import { isUserOnline } from "../sockets/socketStore.js";
 import { CHUNK_SIZE } from "../data/upload.data.js";
 
@@ -17,11 +17,13 @@ const onPresignURL = async ({ files, type = "message", userId = null }) => {
     ? files
     : (files && typeof files === "object" ? [files] : []);
 
+  validateFileCount(fileList, type);
+
   const presignUrls = await Promise.all(
     fileList.map(async (file) => {
       validateUploadFile(file, type);
 
-      const tempId = file.tempAttachmentId || new ObjectId().toString();
+      const tempId = file.tempAttachmentId;
       const size = Number(file.fileSize || 0);
 
       if (size < CHUNK_SIZE) {

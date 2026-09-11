@@ -18,7 +18,7 @@ const onGeneratePresignURL = async ({ folder = "", userId = "", tempAttachmentId
   const s3Key = tempAttachmentId 
   ? `${folder}/${tempAttachmentId}_${filename}` 
   : `${folder}/${userId}`;
-  
+
   const command = new PutObjectCommand({
     Bucket: BUCKET_NAME,
     Key: s3Key,
@@ -28,7 +28,7 @@ const onGeneratePresignURL = async ({ folder = "", userId = "", tempAttachmentId
   const url = await getSignedUrl(s3Client, command, {
     expiresIn: signedUrlExpireSeconds,
   });
-  
+
   return { url, fileName: s3Key, s3Key };
 };
 
@@ -75,7 +75,10 @@ const onGetURL = async (type, userId = "", tempAttachmentId = "", filename = "")
 
   const encodedKey = s3Key.split('/').map(encodeURIComponent).join('/');
   
-  return `https://${env.S3_BUCKET}.s3.${env.S3_REGION}.amazonaws.com/${encodedKey}`;
+  const baseUrl = `https://${env.S3_BUCKET}.s3.${env.S3_REGION}.amazonaws.com/${encodedKey}`;
+  // Thêm date vào để tránh việc cache data image cũ của user 
+  // bởi vì fileName dùng cố định userId nên sẽ không thay đổi khi update avatar
+  return type === "avatar" ? `${baseUrl}?v=${Date.now()}` : baseUrl; 
 };
 
 const onCompleteMultipart = async ({ uploadId, s3Key, parts }) => {
