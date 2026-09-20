@@ -8,6 +8,7 @@ import {
   emitUnReactEmotion,
 } from "../../sockets/emitters/messages.emitter.js";
 import { MESSAGE_REACTION_REPOSITORY } from "../../repository/messageReaction.repository.js";
+import { BLOCK_REPOSITORY } from "../../repository/block.repository.js";
 
 export const onReactEmotion = async ({
   conversationId,
@@ -33,7 +34,12 @@ export const onReactEmotion = async ({
       conversationId,
       currentUserId,
     );
-    if (!ortherUserId) throw new Error("You are not allowed to operate.");
+    if (!ortherUserId) throw new Error("You are not allowed to perform this action. Please unblock the other person.");
+
+    const block = await BLOCK_REPOSITORY.findByBlock(currentUserId, ortherUserId);
+    if (block?.status === 'blocked') {
+      throw new Error("You are not allowed to perform this action. Please unblock the other person.");
+    }
 
     const message = await MESSAGE_REPOSITORY.findOne(
       { _id: new ObjectId(messageId), deletedBy: { $nin: [currentUserId] }, isRevoked: false },
@@ -118,7 +124,12 @@ export const onUnReactEmotion = async ({
       conversationId,
       currentUserId,
     );
-    if (!ortherUserId) throw new Error("You are not allowed to operate.");
+    if (!ortherUserId) throw new Error("You are not allowed to perform this action. Please unblock the other person.");
+
+    const block = await BLOCK_REPOSITORY.findByBlock(currentUserId, ortherUserId);
+    if (block?.status === 'blocked') {
+      throw new Error("You are not allowed to perform this action. Please unblock the other person.");
+    }
 
     const message = await MESSAGE_REPOSITORY.findOne(
       { _id: new ObjectId(messageId), deletedBy: { $nin: [currentUserId] }, isRevoked: false },

@@ -4,12 +4,12 @@ import env from '../../config/env.js';
 const generateCallSummary = async (transcript) => {
     const apiKey = env.GEMINI_API_KEY;
     if (!apiKey) {
-        throw new Error("Chưa cấu hình GEMINI_API_KEY trong file .env của Backend.");
+        throw new Error("GEMINI_API_KEY is not configured in Backend .env file.");
     }
 
     if (!Array.isArray(transcript) || transcript.length === 0) {
         return {
-            summary: "Cuộc gọi không có nội dung hội thoại.",
+            summary: "The call has no conversation content.",
             keyPoints: [],
             actionItems: []
         };
@@ -19,22 +19,21 @@ const generateCallSummary = async (transcript) => {
         .map((t) => `[${t.timestamp || 'N/A'}] ${t.speaker || 'Unknown'}: ${t.text || ''}`)
         .join("\n");
 
-    // 3. Prompt thiết kế cực kỳ nghiêm ngặt để ép Gemini trả về PURE JSON
-    const prompt = `Bạn là hệ thống API tự động xử lý dữ liệu cuộc gọi.
-                    Nhiệm vụ: Phân tích đoạn hội thoại dưới đây và trả về KẾT QUẢ DƯỚI DẠNG 1 JSON OBJECT DUY NHẤT.
+    const prompt = `You are an automated API system processing call data.
+                    Task: Analyze the transcript below and return the result ONLY AS A SINGLE JSON OBJECT.
 
-                    BẮT BUỘC TUÂN THỦ CÁC QUY TẮC SAU:
-                    1. KHÔNG sử dụng Markdown codeblock (KHÔNG dùng \`\`\`json hoặc \`\`\`).
-                    2. KHÔNG thêm bất kỳ lời dẫn, giải thích hay câu chào hỏi nào.
-                    3. Chỉ trả về duy nhất chuỗi JSON hợp lệ theo đúng cấu trúc mẫu dưới đây:
+                    CRITICAL RULES:
+                    1. DO NOT use Markdown codeblocks (NO \`\`\`json or \`\`\`).
+                    2. DO NOT add any intro, explanations, or greetings.
+                    3. ONLY return a valid JSON string strictly following this schema:
 
                     {
-                    "summary": "Tóm tắt ngắn gọn nội dung chính cuộc gọi (2-3 câu)",
-                    "keyPoints": ["Ý chính 1", "Ý chính 2"],
-                    "actionItems": ["Nhiệm vụ cần thực hiện sau cuộc gọi (ghi rõ người làm nếu có)"]
+                    "summary": "Concise summary of the main call content (2-3 sentences)",
+                    "keyPoints": ["Key point 1", "Key point 2"],
+                    "actionItems": ["Post-call action items (specify assignee if mentioned)"]
                     }
 
-                    Hội thoại cuộc gọi:
+                    Call transcript:
                     ${transcriptText}`;
 
     try {
@@ -52,7 +51,7 @@ const generateCallSummary = async (transcript) => {
             }
         );
 
-        // Trích xuất text từ response linh hoạt
+        // Extract text from response flexibly
         const modelOutputStep = response.data?.steps?.find((s) => s.type === 'model_output');
         let rawText =
             modelOutputStep?.content?.[0]?.text ||
@@ -65,10 +64,10 @@ const generateCallSummary = async (transcript) => {
         }
 
         if (!rawText || typeof rawText !== 'string') {
-            throw new Error("Không nhận được dữ liệu văn bản từ Gemini API.");
+            throw new Error("No text data received from Gemini API.");
         }
 
-        // Xử lý làm sạch triệt để phòng trường hợp AI vẫn sót codeblock
+        // Clean codeblocks
         const cleanedJsonText = rawText
             .replace(/^```json/gi, '')
             .replace(/^```/gi, '')
@@ -79,13 +78,13 @@ const generateCallSummary = async (transcript) => {
         return aiSummary;
 
     } catch (error) {
-        console.error("Lỗi khi tạo tóm tắt cuộc gọi:", error?.response?.data || error.message);
+        console.error("Error creating call summary:", error?.response?.data || error.message);
         
         if (error instanceof SyntaxError) {
-            throw new Error("Dữ liệu phản hồi từ AI không thể chuyển đổi thành JSON hợp lệ.");
+            throw new Error("AI response data could not be parsed into valid JSON.");
         }
         
-        throw new Error(error?.response?.data?.error?.message || error.message || "Lỗi xử lý tóm tắt cuộc gọi.");
+        throw new Error(error?.response?.data?.error?.message || error.message || "Error processing call summary.");
     }
 };
 

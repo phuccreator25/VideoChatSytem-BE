@@ -6,7 +6,7 @@ const onAddContact = async(req, res, next) => {
         const result = await INVITATION_SERVICE.onAddContact(data, req.user.id)
         return res.status(201).json({
             data: result,
-            message: "Đã gửi lời mời kết bạn thành công"
+            message: "Friend invitation sent successfully"
         })
     } catch (error) {
         next(error)

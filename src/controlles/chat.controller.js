@@ -238,6 +238,17 @@ const onSearchMessageGlobal = async (req, res, next) => {
   }
 };
 
+const onGetAllAttachedFiles = async (req, res, next) => {
+  try {
+    const currentUserId = req.user.id;
+    const { page = 1, limit = 5 } = req.query;
+    const result = await CHAT_SERVICE.onGetAllAttachedFiles(currentUserId, page, limit);
+    return res.status(200).json(result);
+  } catch (error) {
+    next(error);
+  }
+};
+
 
 export const CHAT_CONTROLLER = {
   onSendMessage,
@@ -253,4 +264,5 @@ export const CHAT_CONTROLLER = {
   onGetShareLinks,
   onGetLinkPreview,
   onSearchMessageGlobal,
+  onGetAllAttachedFiles
 };

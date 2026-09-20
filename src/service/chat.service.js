@@ -2,7 +2,7 @@ import { onSendMessage, onResendMessage, processSendMessage, markConversationAsR
 import { onReactEmotion, onUnReactEmotion } from "./chat/reaction.service.js";
 import { onForwardMessageSingle, onForwardMessage } from "./chat/forward.service.js";
 import { onDeleteMessage, onRevokeMessage, onSearchMessage, onSearchMessageGlobal } from "./chat/messageManage.service.js";
-import { onGetShareMedia, onGetShareFiles, onGetShareLinks, onGetLinkPreview } from "./chat/shareMedia.service.js";
+import { onGetShareMedia, onGetShareFiles, onGetShareLinks, onGetLinkPreview, onGetAllAttachedFiles } from "./chat/shareMedia.service.js";
 
 export const CHAT_SERVICE = {
   onSendMessage,
@@ -20,5 +20,6 @@ export const CHAT_SERVICE = {
   onGetShareFiles,
   onGetShareLinks,
   onGetLinkPreview,
-  onSearchMessageGlobal
+  onSearchMessageGlobal,
+  onGetAllAttachedFiles
 };

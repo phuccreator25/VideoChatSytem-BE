@@ -19,4 +19,6 @@ chatRouter.get('/chats/share-links/:conversationId', authMiddleware, CHAT_CONTRO
 chatRouter.get('/chats/link-preview', authMiddleware, CHAT_CONTROLLER.onGetLinkPreview)
 
 chatRouter.get('/chats/search-message-global', authMiddleware, CHAT_CONTROLLER.onSearchMessageGlobal)
-export default chatRouter
+chatRouter.get('/chats/attached-files', authMiddleware, CHAT_CONTROLLER.onGetAllAttachedFiles)
+
+export default chatRouter   

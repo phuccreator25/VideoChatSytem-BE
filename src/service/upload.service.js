@@ -10,7 +10,7 @@ import { CHUNK_SIZE } from "../data/upload.data.js";
 
 const onPresignURL = async ({ files, type = "message", userId = null }) => {
   if (type !== "message" && type !== "avatar") {
-    throw new Error("Loại upload không hợp lệ");
+    throw new Error("Invalid upload type");
   }
 
   const fileList = Array.isArray(files)

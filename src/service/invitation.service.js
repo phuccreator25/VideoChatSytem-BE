@@ -2,7 +2,7 @@ import { client } from "../config/database.js";
 import { invitationStatus } from "../data/invitation.data.js";
 import { CONTACTS_REPOSITORY } from "../repository/contacts.repository.js";
 import { INVITATION_REPOSITORY } from "../repository/invitation.repository.js";
-import { USER_REPOSITORY } from "../repository/user.repository.js";
+import { BLOCK_REPOSITORY } from "../repository/block.repository.js";
 import { emitPresenceChanged } from "../sockets/emitters/auth.emitter.js";
 import {
   emitInvitationAccept,
@@ -15,6 +15,10 @@ import { isUserOnline } from "../sockets/socketStore.js";
 
 const onAddContact = async (payload, _currentIdUser) => {
   try {
+    const block = await BLOCK_REPOSITORY.findByBlock(_currentIdUser, payload.userId);
+    if (block?.status === "blocked") {
+      throw new Error("You are not allowed to perform this action. Please unblock the other person.");
+    }
     const existingInvitation = await INVITATION_REPOSITORY.findByFilter({
       $or: [
         {
@@ -40,14 +44,14 @@ const onAddContact = async (payload, _currentIdUser) => {
     if (existingInvitation) {
       if (existingInvitation.status === invitationStatus.PENDING) {
         if (existingInvitation.senderId === _currentIdUser) {
-          throw new Error("Bạn đã gửi lời mời cho người này rồi");
+          throw new Error("You have already sent an invitation to this user");
         }
 
-        throw new Error("Người này đã gửi lời mời cho bạn rồi");
+        throw new Error("This user has already sent you an invitation");
       }
     }
 
-    if (contact) throw new Error("Bạn và người này đã là bạn bè");
+    if (contact) throw new Error("You and this user are already friends");
 
     const dataCreated = {
       senderId: _currentIdUser,

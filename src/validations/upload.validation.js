@@ -37,34 +37,34 @@ export const MAX_MESSAGE_FILE_COUNT = 20;
 
 export const validateFileCount = (fileList = [], type = "message") => {
   if (type === "message" && fileList.length > MAX_MESSAGE_FILE_COUNT) {
-    throw new Error(`Số lượng file tải lên tối đa là ${MAX_MESSAGE_FILE_COUNT} file mỗi lần`);
+    throw new Error(`Maximum allowed files to upload is ${MAX_MESSAGE_FILE_COUNT} per request`);
   }
 };
 
 export const validateUploadFile = (file, type) => {
   const fileName = (file?.fileName || file?.name || "").trim();
   if (!file || !fileName) {
-    throw new Error("Thông tin file không hợp lệ");
+    throw new Error("Invalid file metadata");
   }
 
   const mimeType = (file.mimeType || file.type || "").toLowerCase();
   const fileSize = Number(file.fileSize || file.size || 0);
 
   if (DISALLOWED_EXTENSIONS.test(fileName)) {
-    throw new Error(`File "${fileName}" thuộc định dạng cấm, không thể tải lên`);
+    throw new Error(`File "${fileName}" uses a restricted format and cannot be uploaded`);
   }
 
   if (fileSize > 0) {
     const maxAllowedSize = type === "avatar" ? MAX_AVATAR_FILE_SIZE : MAX_MESSAGE_FILE_SIZE;
     if (fileSize > maxAllowedSize) {
       const limitText = type === "avatar" ? "5MB" : "1GB";
-      throw new Error(`Dung lượng file "${fileName}" vượt quá giới hạn cho phép (${limitText})`);
+      throw new Error(`File size of "${fileName}" exceeds the allowed limit (${limitText})`);
     }
   }
 
   if (type === "avatar") {
     if (!ALLOWED_AVATAR_EXTS.test(fileName) || (mimeType && !ALLOWED_AVATAR_MIMES.includes(mimeType))) {
-      throw new Error("Ảnh đại diện phải thuộc định dạng hình ảnh (JPG, PNG, WEBP, GIF, SVG)");
+      throw new Error("Avatar must be an image format (JPG, PNG, WEBP, GIF, SVG)");
     }
   }
 
@@ -78,7 +78,7 @@ export const validateUploadFile = (file, type) => {
       mimeType.startsWith("text/");
 
     if (!isAllowed) {
-      throw new Error(`Định dạng file "${fileName}" (${mimeType}) không được hỗ trợ`);
+      throw new Error(`File format "${fileName}" (${mimeType}) is not supported`);
     }
   }
 };

@@ -105,7 +105,7 @@ export const onRegister = async (payload) => {
 
     if (existingUser) {
       if (existingUser.isActive) {
-        throw new Error("Email này đã được đăng ký tài khoản");
+        throw new Error("This email is already registered");
       }
 
       await USER_REPOSITORY.updateById({
@@ -121,7 +121,7 @@ export const onRegister = async (payload) => {
 
       await sendMail({
         to: existingUser.email,
-        title: "Kích hoạt tài khoản",
+        title: "Account Activation",
         view: "src/views/Mail/Register.viewMail.ejs",
         data: { link: activationLink },
       });
@@ -146,7 +146,7 @@ export const onRegister = async (payload) => {
 
     await sendMail({
       to: data.email,
-      title: "Kích hoạt tài khoản",
+      title: "Account Activation",
       view: "src/views/Mail/Register.viewMail.ejs",
       data: { link: activationLink },
     });
@@ -164,7 +164,7 @@ export const onActiveAccount = async (payload) => {
 
     if (!updatedUser) {
       throw new Error(
-        "Email này đã kích hoạt tài khoản từ trước hoặc không tồn tại",
+        "This email is already activated or does not exist",
       );
     }
 
@@ -179,18 +179,18 @@ export const onLogin = async (payload) => {
   try {
     const user = await USER_REPOSITORY.findByEmail(payload.email);
 
-    if (!user) throw new Error("Tài khoản không tồn tại");
+    if (!user) throw new Error("Account does not exist");
 
-    if (!user.isActive) throw new Error("Tài khoản chưa được kích hoạt");
+    if (!user.isActive) throw new Error("Account is not activated yet");
 
-    if (user.isBanned) throw new Error("Tài khoản này đã bị khóa");
+    if (user.isBanned) throw new Error("This account has been banned");
 
     const isPasswordValid = await bcrypt.compare(
       payload.password,
       user.password,
     );
 
-    if (!isPasswordValid) throw new Error("Mật khẩu không chính xác");
+    if (!isPasswordValid) throw new Error("Incorrect password");
 
     const data = {
       ...payload,
@@ -207,7 +207,7 @@ export const onLogin = async (payload) => {
 export const onLogOut = async (refreshToken) => {
   try {
     if (!refreshToken) {
-      throw new Error("Phiên đăng nhập không tồn tại");
+      throw new Error("Session does not exist");
     }
 
     const session = await DEVICE_SESSION_REPOSITORY.findOne({
@@ -217,7 +217,7 @@ export const onLogOut = async (refreshToken) => {
 
     if (!session) {
       throw new Error(
-        "Phiên đăng nhập của bạn không tồn tại hoặc đã bị đăng xuất",
+        "Your session does not exist or has been logged out",
       );
     }
 
@@ -245,7 +245,7 @@ export const onForgotPassword = async (payload) => {
     const result = await USER_REPOSITORY.findByEmail(payload.email);
 
     if (!result) {
-      throw new Error("Tài khoản của bạn không tồn tại");
+      throw new Error("Your account does not exist");
     }
 
     const expiredVerifyTokenAt = new Date(Date.now() + 15 * 60 * 1000);
@@ -277,7 +277,7 @@ export const onForgotPassword = async (payload) => {
 
     await sendMail({
       to: payload.email,
-      title: "Thay đổi mật khẩu",
+      title: "Password Reset Request",
       view: "src/views/Mail/RessetPassword.ejs",
       data: { dataEmail },
     });
@@ -293,7 +293,7 @@ export const onResetPassword = async (payload) => {
   try {
     const isAccount = await USER_REPOSITORY.findByToken(payload.token);
 
-    if (!isAccount) throw new Error("Tài khoản của bạn không tồn tại");
+    if (!isAccount) throw new Error("Your account does not exist");
 
     if (isAccount.expiredVerifyTokenAt < new Date())
       throw new Error("The password change deadline has passed.");
@@ -324,26 +324,26 @@ export const onRefreshToken = async (refreshToken) => {
     });
 
     if (!session) {
-      throw new Error("Phiên đăng nhập không tồn tại");
+      throw new Error("Login session does not exist");
     }
 
     if (session.revokedAt) {
-      throw new Error("Phiên đăng nhập đã bị thu hồi, vui lòng đăng nhập lại");
+      throw new Error("Login session has been revoked, please log in again");
     }
 
     if (new Date() > new Date(session.expiredAt)) {
-      throw new Error("Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại");
+      throw new Error("Login session has expired, please log in again");
     }
 
     const user = await USER_REPOSITORY.findById(session.userId);
 
     if (!user) {
-      throw new Error("Tài khoản không tồn tại");
+      throw new Error("Account does not exist");
     }
 
     if (user.isBanned) {
       throw new Error(
-        "Tài khoản của bạn đã bị khóa, vui lòng liên hệ bộ phận hỗ trợ",
+        "Your account has been locked, please contact support",
       );
     }
 
@@ -389,10 +389,10 @@ export const onGetListSession = async ({ currentUserId, currentSessionId }) => {
 
 export const onBanSession = async ({ sessionId, currentUserId, currentSessionId }) => {
   try {
-    if (!sessionId) throw new Error("Session ID không tồn tại");
+    if (!sessionId) throw new Error("Session ID does not exist");
 
     if (currentSessionId && sessionId === currentSessionId) {
-      throw new Error("Không thể tự thu hồi phiên đăng nhập hiện tại!");
+      throw new Error("Cannot revoke current login session!");
     }
 
     const session = await DEVICE_SESSION_REPOSITORY.findOne({
@@ -402,7 +402,7 @@ export const onBanSession = async ({ sessionId, currentUserId, currentSessionId 
     });
 
     if (!session) {
-      throw new Error("Phiên đăng nhập của bạn không tồn tại");
+      throw new Error("Your login session does not exist");
     }
 
     const dataUpdate = {
@@ -416,7 +416,7 @@ export const onBanSession = async ({ sessionId, currentUserId, currentSessionId 
     );
 
     emitBanSessionEvent(currentUserId, sessionId, {
-      message: "Phiên đăng nhập của bạn đã bị thu hồi",
+      message: "Your login session has been revoked",
     });
 
     return data;
@@ -429,7 +429,7 @@ export const onBanSession = async ({ sessionId, currentUserId, currentSessionId 
 export const onBanAllOtherSessions = async ({ currentUserId, currentSessionId }) => {
   try {
     if (!currentUserId || !currentSessionId) {
-      throw new Error("Thông tin xác thực không hợp lệ");
+      throw new Error("Invalid authentication info");
     }
 
     const otherSessions = await DEVICE_SESSION_REPOSITORY.findMany({
@@ -439,7 +439,7 @@ export const onBanAllOtherSessions = async ({ currentUserId, currentSessionId })
     });
 
     if (otherSessions.length === 0) {
-      throw new Error('Không có phiên khác để thu hồi');
+      throw new Error('No other sessions to revoke');
     }
 
     await DEVICE_SESSION_REPOSITORY.updateMany(
@@ -456,7 +456,7 @@ export const onBanAllOtherSessions = async ({ currentUserId, currentSessionId })
 
     otherSessions.forEach((s) => {
       emitBanSessionEvent(currentUserId, s.sessionId, {
-        message: "Tất cả các phiên đăng nhập khác của bạn đã bị thu hồi",
+        message: "All your other login sessions have been revoked",
       });
     });
 

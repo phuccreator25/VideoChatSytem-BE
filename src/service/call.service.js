@@ -373,7 +373,7 @@ const onSpeedToTextCall = async ({ callId, transcript, currentUserId }) => {
 
         const call = await CALL_REPOSITORY.findOne({ _id: new ObjectId(callId) });
         if (!call) {
-            throw new Error(`Không tìm thấy Cuộc gọi với ID: ${callId}`);
+            throw new Error(`Call not found with ID: ${callId}`);
         }
 
         let updateOperation;
@@ -401,14 +401,14 @@ const onSpeedToTextCall = async ({ callId, transcript, currentUserId }) => {
         );
 
         if (result.matchedCount === 0) {
-            throw new Error(`User ${currentUserId} không phải là participant trong cuộc gọi ${callId}`);
+            throw new Error(`User ${currentUserId} is not a participant in call ${callId}`);
         }
 
-        console.log(` Đã lưu ${transcriptArray.length} câu thoại vào DB thành công!`);
+        console.log(` Saved ${transcriptArray.length} transcript lines to DB successfully!`);
         return true;
 
     } catch (error) {
-        console.error("Lỗi trong onSpeedToTextCall:", error);
+        console.error("Error in onSpeedToTextCall:", error);
         throw error;
     }
 };
@@ -427,14 +427,14 @@ const onGenerateCallAISummary = async ({ callId }) => {
         }
 
         if (!Array.isArray(call.transcript) || call.transcript.length === 0) {
-            throw new Error("Cuộc gọi chưa có dữ liệu hội thoại (transcript) để tóm tắt.");
+            throw new Error("Call has no transcript data to summarize.");
         }
 
-        // Gọi dịch vụ AI module hóa độc lập
+        // Call modularized independent AI service
         const aiSummary = await GEMINI_SERVICE.generateCallSummary(call.transcript);
 
         await session.startTransaction();
-        // Cập nhật DB song song bằng Promise.all để tối ưu tốc độ
+        // Update DB in parallel using Promise.all
         await Promise.all([
             MESSAGE_REPOSITORY.updateOne(
                 { 'callInfo.callId': callId },
@@ -457,7 +457,7 @@ const onGenerateCallAISummary = async ({ callId }) => {
 
     } catch (error) {
         if (error?.response?.status === 429) {
-            throw new Error("Hệ thống Gemini AI đang tạm thời quá tải (Rate Limit). Vui lòng thử lại sau!");
+            throw new Error("Gemini AI is temporarily rate-limited. Please try again later!");
         }
         console.error("Lỗi trong onGenerateCallAISummary:", error?.response?.data || error.message);
         throw error;
@@ -560,7 +560,7 @@ const onQueryChat = async ({ question, userId }) => {
                 .replace(/([^\n])\s*-\s+\*\*/g, '$1\n- **');
         }
 
-        return outputText || "Không nhận được phản hồi từ AI.";
+        return outputText || "No response received from AI.";
 
     } catch (error) {
         console.error("Lỗi trong onQueryChat Service:", error?.response?.data || error.message);

@@ -1,4 +1,3 @@
-import { ObjectId } from "mongodb";
 import { GET_DB } from "../config/database.js";
 import { BLOCK_MODEL } from "../models/block.model.js"
 import { USER_MODEL } from "../models/user.model.js";

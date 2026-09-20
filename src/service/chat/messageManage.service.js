@@ -9,6 +9,7 @@ import {
   emitRevokeMessage,
 } from "../../sockets/emitters/messages.emitter.js";
 import { CONTACTS_REPOSITORY } from "../../repository/contacts.repository.js";
+import { BLOCK_REPOSITORY } from "../../repository/block.repository.js";
 
 export const onDeleteMessage = async ({ conversationId, messageId, currentUserId }) => {
   const session = client.startSession();
@@ -17,6 +18,18 @@ export const onDeleteMessage = async ({ conversationId, messageId, currentUserId
 
     const conversation = await CONVERSATION_REPOSITORY.findOne({ _id: new ObjectId(conversationId) }, session);
     if (!conversation) throw new Error("Not found conversation");
+
+    const ortherUserId = await CONVERSATION_PARTICIPANT_REPOSITORY.findOtherUserIdByConversation(
+      conversationId,
+      currentUserId,
+    );
+
+    if (!ortherUserId) throw new Error("You are not allowed to perform this action. Please unblock the other person.");
+
+    const block = await BLOCK_REPOSITORY.findByBlock(currentUserId, ortherUserId);
+    if (block?.status === 'blocked') {
+      throw new Error("You are not allowed to perform this action. Please unblock the other person.");
+    }
 
     const message = await MESSAGE_REPOSITORY.findOne({ _id: new ObjectId(messageId) }, session);
     if (!message) throw new Error("Not found message");
@@ -81,6 +94,13 @@ export const onRevokeMessage = async ({ conversationId, messageId, currentUserId
       conversationId,
       currentUserId,
     );
+
+    if (!ortherUserId) throw new Error("You are not allowed to perform this action. Please unblock the other person.");
+
+    const block = await BLOCK_REPOSITORY.findByBlock(currentUserId, ortherUserId);
+    if (block?.status === 'blocked') {
+      throw new Error("You are not allowed to perform this action. Please unblock the other person.");
+    }
 
     const messageRevoked = {
       id: message._id.toString(),

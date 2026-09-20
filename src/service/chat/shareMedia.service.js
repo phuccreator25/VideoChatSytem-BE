@@ -132,3 +132,13 @@ export const onGetLinkPreview = async ({ url }) => {
     }
   }
 };
+
+export const onGetAllAttachedFiles = async (currentUserId, page = 1, limit = 5) => {
+  try {
+    if (!currentUserId) throw new Error("User ID is required");
+    const result = await MESSAGE_REPOSITORY.onGetAllAttachedFiles(currentUserId, page, limit);
+    return result;
+  } catch (error) {
+    throw error;
+  }
+};

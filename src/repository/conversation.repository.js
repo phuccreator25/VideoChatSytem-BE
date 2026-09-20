@@ -5,6 +5,7 @@ import { CONTACT_MODEL } from "../models/contact.model.js";
 import { USER_MODEL } from "../models/user.model.js";
 import { MESSAGE_MODEL } from "../models/message.model.js";
 import { MESSAGE_DELIVERY_MODEL } from "../models/messageDeliveries.model.js";
+import { BLOCK_MODEL } from "../models/block.model.js";
 import { isUserOnline } from "../sockets/socketStore.js";
 import { ObjectId } from "mongodb";
 
@@ -383,11 +384,52 @@ const findListByUserId = async (currentUserId) => {
         },
       },
       {
+        $lookup: {
+          from: BLOCK_MODEL.COLLECTION_BLOCK_NAME,
+          let: {
+            currentUserId: currentUserId,
+            otherUserId: "$otherParticipant.userId",
+          },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $and: [
+                    { $eq: ["$status", BLOCK_MODEL.blockStatus.BLOCKED] },
+                    {
+                      $or: [
+                        {
+                          $and: [
+                            { $eq: ["$blockerId", "$$currentUserId"] },
+                            { $eq: ["$blockedId", "$$otherUserId"] },
+                          ],
+                        },
+                        {
+                          $and: [
+                            { $eq: ["$blockerId", "$$otherUserId"] },
+                            { $eq: ["$blockedId", "$$currentUserId"] },
+                          ],
+                        },
+                      ],
+                    },
+                  ],
+                },
+              },
+            },
+            { $limit: 1 },
+          ],
+          as: "blockInfo",
+        },
+      },
+      {
         $addFields: {
           nickname: { $arrayElemAt: ["$contactInfo.nickname", 0] },
           lastMessage: { $arrayElemAt: ["$lastMessage", 0] },
           unreadCount: {
             $ifNull: [{ $arrayElemAt: ["$unreadInfo.count", 0] }, 0],
+          },
+          isBlocked: {
+            $gt: [{ $size: "$blockInfo" }, 0],
           },
         },
       },
@@ -406,6 +448,7 @@ const findListByUserId = async (currentUserId) => {
           createdAt: 1,
           unreadCount: 1,
           userId: "$otherUser._id",
+          isBlocked: 1,
         },
       },
       {
@@ -445,6 +488,7 @@ const findListByUserId = async (currentUserId) => {
       unread: item.unreadCount || 0,
       active: false,
       userId: item.userId,
+      isBlocked: Boolean(item.isBlocked),
     };
   });
 };

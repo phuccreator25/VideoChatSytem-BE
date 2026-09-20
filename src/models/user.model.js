@@ -10,9 +10,9 @@ const PASSWORD_SCHEMA = Joi.string()
   .pattern(PASSWORD_REGEX)
   .required()
   .messages({
-    "string.min": "Mật khẩu phải chứa ít nhất 8 ký tự",
-    "string.pattern.base": "Mật khẩu phải chứa ít nhất 8 ký tự, bao gồm chữ hoa, chữ thường, chữ số và ký tự đặc biệt",
-    "string.empty": "Vui lòng nhập mật khẩu",
+    "string.min": "Password must contain at least 8 characters",
+    "string.pattern.base": "Password must contain at least 8 characters, including uppercase, lowercase, numbers, and special characters",
+    "string.empty": "Please enter password",
   });
 
 const COLECTION_USER_SCHEMA = Joi.object({

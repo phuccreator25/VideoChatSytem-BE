@@ -64,7 +64,7 @@ const SERVER = async () => {
     const statusCode = err.statusCode || 500
 
     return res.status(statusCode).json({
-      message: err.message || 'Đã xảy ra lỗi vui lòng thử lại'
+      message: err.message || 'An error occurred please try again'
     })
   })
 

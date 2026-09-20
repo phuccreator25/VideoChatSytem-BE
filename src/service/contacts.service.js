@@ -1,6 +1,5 @@
-import { client, GET_DB } from "../config/database.js";
+import { client } from "../config/database.js";
 import { CONTACTS_REPOSITORY } from "../repository/contacts.repository.js";
-import { USER_REPOSITORY } from "../repository/user.repository.js";
 import { emitPresenceChanged } from "../sockets/emitters/auth.emitter.js";
 import { emitContactRemove, emitContactUpdateNickName } from "../sockets/emitters/contact.emitter.js";
 import { isUserOnline } from "../sockets/socketStore.js";

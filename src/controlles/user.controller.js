@@ -6,11 +6,11 @@ const onRegister = async (req, res, next) => {
     const dataCreated = await USER_SERVICE.onRegister(req.body);
 
     return res.status(201).json({
-      message: "Vui lòng kiểm tra Email để thực hiện xác thực tài khoản",
+      message: "Please check your email to activate your account",
       data: dataCreated,
     });
   } catch (error) {
-    next(error); // CHUYỂN ĐẾN FUCNTION LỖI Ở SERVER.JS
+    next(error); // PASS TO ERROR FUNCTION IN SERVER.JS
   }
 };
 
@@ -66,7 +66,7 @@ const onLogin = async (req, res, next) => {
     });
 
     return res.status(200).json({
-      message: "Đã đăng nhập thành công",
+      message: "Login successful",
       data: dataLogin.data
     });
   } catch (error) {
@@ -97,7 +97,7 @@ const onLogOut = async (req, res, next) => {
     });
 
     return res.status(200).json({
-      message: "Đăng xuất thành công",
+      message: "Logout successful",
     });
   } catch (error) {
     const isProduction = env.NODE_ENV === "production";
@@ -115,7 +115,7 @@ const onLogOut = async (req, res, next) => {
     });
 
     return res.status(200).json({
-      message: "Đăng xuất thành công",
+      message: "Logout successful",
     });
   }
 };
@@ -133,7 +133,7 @@ const onResetPassword = async (req, res, next) => {
   try {
 
     if (!req.params.token || !req.body.password) {
-      throw new Error("Dữ liệu không hợp lệ");
+      throw new Error("Invalid data");
     }
 
     const data = {
@@ -144,7 +144,7 @@ const onResetPassword = async (req, res, next) => {
     const result = await USER_SERVICE.onResetPassword(data);
 
     return res.status(200).json({
-      message: "Đổi mật khẩu thành công",
+      message: "Password changed successfully",
       data: {
         email: result.email
       }
@@ -161,7 +161,7 @@ const onRefreshToken = async (req, res, next) => {
 
     if (!refreshToken) {
       return res.status(401).json({
-        message: "Vui lòng đăng nhập tài khoản lại",
+        message: "Please log in again",
       });
     }
 
@@ -210,7 +210,7 @@ const onUpdate = async (req, res, next) => {
     });
 
     return res.status(200).json({
-      message: "Cập nhật thành công",
+      message: "Updated successfully",
       data: user,
     });
   } catch (error) {
@@ -274,7 +274,7 @@ const onBanSession = async (req, res, next) => {
     await USER_SERVICE.onBanSession({ sessionId, currentUserId, currentSessionId });
 
     return res.status(200).json({
-      message: "Đã chặn phiên này",
+      message: "Session revoked successfully",
     });
   } catch (error) {
     next(error);
@@ -292,7 +292,7 @@ const onBanAllOtherSessions = async (req, res, next) => {
     });
 
     return res.status(200).json({
-      message: "Đã thu hồi tất cả các phiên khác",
+      message: "All other sessions revoked successfully",
       data: result,
     });
   } catch (error) {

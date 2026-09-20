@@ -94,8 +94,7 @@ const onGetConversationById = async ({ conversationId, currentUserId }) => {
     throw new Error("You are not a participant of this conversation");
   }
 
-  const [currentUser, userData, contactData, messages, Invitation, pinMessages, block] = await Promise.all([
-    USER_REPOSITORY.findById(currentUserId),
+  const [userData, contactData, messages, Invitation, pinMessages, block] = await Promise.all([
     USER_REPOSITORY.findById(otherUserId),
     CONTACTS_REPOSITORY.findContactItem(currentUserId, otherUserId),
     MESSAGE_REPOSITORY.findByConversationId(conversationId, currentUserId, {
@@ -210,6 +209,11 @@ const onPinMessages = async ({
       },
       leftAt: null,
     });
+
+    const block = await BLOCK_REPOSITORY.findByBlock(currentUserId, otherUser.userId.toString());
+    if (block?.status === 'blocked') {
+      throw new Error("You are not allowed to perform this action. Please unblock the other person.");
+    }
 
     const pinnedMessageCount = conversation.pinnedMessages?.length || 0;
 
@@ -363,6 +367,11 @@ const onDeletePinMessages = async ({
       },
       leftAt: null,
     });
+
+    const block = await BLOCK_REPOSITORY.findByBlock(currentUserId, otherUser.userId.toString());
+    if (block?.status === 'blocked') {
+      throw new Error("You are not allowed to perform this action. Please unblock the other person.");
+    }
 
     await session.commitTransaction();
 

@@ -7,6 +7,7 @@ import { isUserOnline } from "../../sockets/socketStore.js";
 import { MESSAGE_REPOSITORY } from "../../repository/message.repository.js";
 import { emitNewMessages } from "../../sockets/emitters/messages.emitter.js";
 import { shareMessageQueue, linkPreviewQueue } from "../../queues/uploadFileQueue.js";
+import { BLOCK_REPOSITORY } from "../../repository/block.repository.js";
 
 export const onForwardMessageSingle = async ({ messageId, targetUserId, senderId, conversationId }) => {
   const session = client.startSession();
@@ -105,7 +106,9 @@ export const onForwardMessageSingle = async ({ messageId, targetUserId, senderId
         $set: {
           lastMessageId: newMsgId,
           lastMessageAt: now,
-          updatedAt: now
+          updatedAt: now,
+          status: "active",
+          deletedBy: [],
         }
       },
       session
@@ -159,7 +162,7 @@ export const onForwardMessage = async ({ selectedIds, messageId, senderId }) => 
   try {
     if (!selectedIds || !messageId || !senderId) return;
 
-    const messageQueues = await Promise.allSettled(
+    const messageQueues = await Promise.all(
       selectedIds.map(async (selectedId) => {
 
         let targetUserId = null;
@@ -184,6 +187,12 @@ export const onForwardMessage = async ({ selectedIds, messageId, senderId }) => 
         if (!targetUserId) {
           throw new Error(`Cannot find recipient for target: ${selectedId}`);
         }
+
+        const block = await BLOCK_REPOSITORY.findByBlock(senderId, targetUserId);
+        if (block?.status === "blocked") throw new Error("You blocked this user");
+
+        const blocked = await BLOCK_REPOSITORY.findByBlock(targetUserId, senderId);
+        if (blocked?.status === "blocked") throw new Error("You are blocked by this user");
 
         return shareMessageQueue.add(
           "forward-message",

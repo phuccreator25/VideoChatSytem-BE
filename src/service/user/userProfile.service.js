@@ -18,7 +18,7 @@ export const onGetUserById = async (payload) => {
 export const onUpdateUser = async ({ _id, sessionId, payload }) => {
   try {
     const user = await USER_REPOSITORY.findById(_id);
-    if (!user) throw new Error("Không tìm thấy tài khoản cần cập nhật");
+    if (!user) throw new Error("Account to update not found");
 
     const updateData = {};
 
@@ -34,14 +34,14 @@ export const onUpdateUser = async ({ _id, sessionId, payload }) => {
 
     if (payload.password) {
       if (!payload.currentPass) {
-        throw new Error("Vui lòng nhập mật khẩu hiện tại");
+        throw new Error("Please enter your current password");
       }
 
       USER_MODEL.validatePassword(payload.password);
 
       const isMatch = await bcrypt.compare(payload.currentPass, user.password);
       if (!isMatch) {
-        throw new Error("Mật khẩu hiện tại không đúng");
+        throw new Error("Incorrect current password");
       }
 
       const saltRounds = 10;
@@ -84,7 +84,7 @@ export const onUpdateUser = async ({ _id, sessionId, payload }) => {
 
         otherSessions.forEach((s) => {
           emitBanSessionEvent(_id.toString(), s.sessionId, {
-            message: "Mật khẩu của bạn đã được thay đổi. Vui lòng đăng nhập lại!",
+            message: "Your password has been changed. Please log in again!",
           });
         });
       }
@@ -126,3 +126,12 @@ export const onUpdateStatus = async (userId, data = {}) => {
     data: updateData,
   });
 };
+
+export const onGetAllAttachedFiles = async ({ currentUserId }) => {
+  try {
+    const files = await USER_REPOSITORY.onGetAllAttachedFiles(currentUserId);
+    
+  } catch (error) {
+    throw error;
+  }
+}

@@ -5,13 +5,12 @@ import { CONVERSATION_PARTICIPANT_REPOSITORY } from "./conversationParticipant.r
 
 const COLLECTION_NAME = MESSAGE_MODEL.COLLECTION_MESSAGE_NAME;
 
-//FIX LẠI ĐOẠN NÀY TƯƠNG TỰ Ở MESSAGE REACTION REPO
 const buildMessagePipeline = ({
   match,
   sort = null,
   skip = null,
   limit = null,
-  currentUserId = null, // Nhận thêm currentUserId từ repo truyền vào
+  currentUserId = null,
 }) => {
   const pipeline = [
     {
@@ -77,27 +76,24 @@ const buildMessagePipeline = ({
     },
     {
       $addFields: {
-        replyMessage: { $arrayElemAt: ["$replyMessageArr", 0] },
+        replyMessage: { $arrayElemAt: ["$replyMessageArr", 0] }, // Vì tin nhắn chỉ có 1 nên khi lookup -> array thì lấy message đầu tiên trong array
       },
     }
   );
 
-  // --- ĐOẠN THÊM MỚI: LOOKUP EMOTION REACTIONS ---
   pipeline.push({
     $lookup: {
       from: "messageReactions",
-      // SỬA Ở ĐÂY 1: Thêm currentUserId vào let để các pipeline con hiểu được
       let: {
-        msgIdStr: { $toString: "$_id" },
+        messageIdStr: { $toString: "$_id" },
         currentUserId: currentUserIdStr
       },
       pipeline: [
         {
           $match: {
-            $expr: { $eq: ["$messageId", "$$msgIdStr"] },
+            $expr: { $eq: ["$messageId", "$$messageIdStr"] },
           },
         },
-        // Lookup sang bảng users để lấy fullname
         {
           $lookup: {
             from: "users",
@@ -112,8 +108,7 @@ const buildMessagePipeline = ({
             as: "userDoc",
           },
         },
-        { $unwind: { path: "$userDoc", preserveNullAndEmptyArrays: true } },
-        // Lookup sang bảng contacts
+        { $unwind: { path: "$userDoc", preserveNullAndEmptyArrays: true } }, // preserveNullAndEmptyArrays để tránh bị mất kết quả khi không có dữ liệu
         {
           $lookup: {
             from: "contacts",
@@ -123,7 +118,6 @@ const buildMessagePipeline = ({
                 $match: {
                   $expr: {
                     $and: [
-                      // SỬA Ở ĐÂY 2: Đã dùng đúng biến $$currentUserId (đã được định nghĩa ở let phía trên)
                       { $eq: [{ $toString: "$ownerId" }, "$$currentUserId"] },
                       { $eq: [{ $toString: "$contactUserId" }, { $toString: "$$reactionUserId" }] },
                     ],
@@ -136,7 +130,6 @@ const buildMessagePipeline = ({
           },
         },
         { $unwind: { path: "$contactDoc", preserveNullAndEmptyArrays: true } },
-        // Định hình lại output
         {
           $project: {
             _id: 0,
@@ -144,8 +137,7 @@ const buildMessagePipeline = ({
             emotion: "$emotion",
             createdAt: 1,
             name: {
-              $cond: [
-                // SỬA Ở ĐÂY 3: Ép $userId sang chuỗi trước khi so sánh với $$currentUserId (chuỗi) để đảm bảo chính xác 100%
+              $cond: [ // Tương đương case if-else
                 { $eq: [{ $toString: "$userId" }, "$$currentUserId"] },
                 "You",
                 {
@@ -292,7 +284,7 @@ const buildMessagePipeline = ({
             senderId: { $ne: currentUserIdStr },
             $or: [
               { type: { $ne: "file" } },
-              { "attachments.0": { $exists: true } },
+              { "attachments.0": { $exists: true } }, // check xem có null không -> trỏ ngay đến phần tử đầu
             ],
           },
         ],
@@ -710,6 +702,60 @@ const updateAttachmentStatusByTempId = async ({ messageId, tempAttachmentId, sta
   }
 };
 
+const onGetAllAttachedFiles = async (currentUserId, page = 1, limit = 5) => {
+  try {
+    const pageNum = Math.max(1, parseInt(page) || 1);
+    const limitNum = Math.max(1, parseInt(limit) || 5);
+    const skip = (pageNum - 1) * limitNum;
+
+    const result = await GET_DB().collection(COLLECTION_NAME).aggregate([
+      {
+        $match: {
+          senderId: currentUserId,
+          type: "file",
+          isRevoked: false,
+        }
+      },
+      { $sort: { createdAt: -1 } },
+      { $unwind: "$attachments" },
+      { $match: { "attachments.status": "done" } },
+      {
+        $facet: { // dùng để chạy song song 2 luồng (data và tính count)
+          data: [
+            { $skip: skip },
+            { $limit: limitNum }
+          ],
+          totalCount: [
+            { $count: "count" }
+          ]
+        }
+      }
+    ]).toArray();
+
+    const files = result[0]?.data || [];
+    const total = result[0]?.totalCount[0]?.count || 0;
+    const totalPages = Math.ceil(total / limitNum);
+
+    return {
+      data: files.map((item) => ({
+        url: item.attachments.fileUrl,
+        name: item.attachments.fileName,
+        size: item.attachments.fileSize,
+        type: item.attachments.resourceType,
+        messageId: item._id,
+        attachmentId: item.attachments?._id,
+        conversationId: item.conversationId,
+        createdAt: item.createdAt ? new Date(item.createdAt) : null,
+      })),
+      total,
+      totalPages,
+      currentPage: pageNum,
+    };
+  } catch (error) {
+    throw error;
+  }
+};
+
 
 export const MESSAGE_REPOSITORY = {
   createOne,
@@ -725,4 +771,5 @@ export const MESSAGE_REPOSITORY = {
   onGetShareLinks,
   searchMessagesGlobal,
   updateAttachmentStatusByTempId,
+  onGetAllAttachedFiles,
 };
