@@ -11,6 +11,7 @@ import { BLOCK_REPOSITORY } from "../../repository/block.repository.js";
 import { CONVERSATION_MODEL } from "../../models/conversation.model.js";
 import { UPLOAD_SERVICE } from "../upload.service.js";
 import { validateFileCount } from "../../validations/upload.validation.js";
+import { onTranslate } from "../../helper/translate.js";
 
 const onSendMessageJob = async({ message, files, conversationId, currentUserId, isResend = false }) => {
   try {
@@ -394,6 +395,69 @@ export const markConversationAsRead = async ({ conversationId, currentUserId }) 
       updatedCount: deliveries.length,
       messageIds: deliveries.map((item) => item.messageId),
       senderId: deliveries[0]?.senderId,
+    };
+  } catch (error) {
+    throw error;
+  }
+};
+
+export const onTranslationMessage = async({ messageId, currentUserId }) => {
+  try {
+    if (!messageId) throw new Error("Message not found");
+    if (!currentUserId) throw new Error("User not found");
+
+    const message = await MESSAGE_REPOSITORY.findOne({ _id: new ObjectId(messageId), isRevoked: false, type: 'text'});
+    if (!message) throw new Error("Message not found");
+    if (!message.content || !message.content.trim()) {
+      throw new Error("Message content is empty");
+    }
+
+    const conversationParticipant = await CONVERSATION_PARTICIPANT_REPOSITORY.findOne(
+      {
+        conversationId: message.conversationId,
+        userId: currentUserId,
+      }
+    );
+
+    if (!conversationParticipant) throw new Error("Target language not found");
+
+    const targetLangClean = (conversationParticipant.targetLanguage || "en").trim().toLowerCase();
+
+    if (message.translations?.[targetLangClean]) {
+      return {
+        translation: message.translations[targetLangClean],
+        targetLanguage: targetLangClean,
+        messageId,
+      };
+    }
+
+    const translation = await onTranslate(message.content, targetLangClean);
+
+    if (!translation || !translation.translation) throw new Error('Translation Failed');
+
+    if (translation.detectedSourceLanguage === targetLangClean) {
+      console.log("Message is already in the target language");
+      return {
+        translation: message.content,
+        targetLanguage: targetLangClean,
+        messageId,
+      };
+    }
+  
+    await MESSAGE_REPOSITORY.updateOne(
+      { _id: new ObjectId(messageId) },
+      {
+        $set: {
+          [`translations.${targetLangClean}`]: translation.translation,
+          updatedAt: new Date(),
+        },
+      }
+    );
+
+    return {
+      translation: translation.translation,
+      targetLanguage: targetLangClean,
+      messageId,
     };
   } catch (error) {
     throw error;

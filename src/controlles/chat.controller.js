@@ -249,6 +249,19 @@ const onGetAllAttachedFiles = async (req, res, next) => {
   }
 };
 
+const onTranslationMessage = async(req, res, next) => {
+  try {
+    const { messageId } = req.params;
+    const currentUserId = req.user.id;
+    const message = await CHAT_SERVICE.onTranslationMessage({ messageId, currentUserId });
+    return res.status(200).json({
+      data: message
+    })
+  } catch (error) {
+    next(error)
+  }
+}
+
 
 export const CHAT_CONTROLLER = {
   onSendMessage,
@@ -264,5 +277,6 @@ export const CHAT_CONTROLLER = {
   onGetShareLinks,
   onGetLinkPreview,
   onSearchMessageGlobal,
-  onGetAllAttachedFiles
+  onGetAllAttachedFiles,
+  onTranslationMessage
 };

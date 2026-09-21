@@ -144,6 +144,26 @@ const onDeleteConversation = async(req, res, next) => {
   }
 }
 
+const onTranslateMessage = async(req, res, next) => {
+  try {
+      const {targetLanguage} = req.body;
+      const conversationId = req.params.conversationId;
+      const currentUserId = req.user.id;
+
+      const result = await CONVERSATION_SERVICE.onUpdateTargetLanguage({
+        conversationId,
+        targetLanguage,
+        currentUserId,
+      });
+
+      return res.status(200).json({
+        data: result,
+      });
+  } catch (error) {
+    
+  }
+} 
+
 export const CONVERSATION_CONTROLLER = {
   onGetOrCreateConversation,
   onGetConversationById,
@@ -152,5 +172,6 @@ export const CONVERSATION_CONTROLLER = {
   onGetPinMessages,
   onDeletePinMessages,
   onGetMoreMessages,
-  onDeleteConversation
+  onDeleteConversation,
+  onTranslateMessage
 };

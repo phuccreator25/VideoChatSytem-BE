@@ -20,5 +20,6 @@ chatRouter.get('/chats/link-preview', authMiddleware, CHAT_CONTROLLER.onGetLinkP
 
 chatRouter.get('/chats/search-message-global', authMiddleware, CHAT_CONTROLLER.onSearchMessageGlobal)
 chatRouter.get('/chats/attached-files', authMiddleware, CHAT_CONTROLLER.onGetAllAttachedFiles)
+chatRouter.post('/chats/translation/:messageId', authMiddleware, CHAT_CONTROLLER.onTranslationMessage)
 
 export default chatRouter   

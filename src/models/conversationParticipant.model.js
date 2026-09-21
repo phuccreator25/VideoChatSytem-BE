@@ -12,6 +12,8 @@ const COLLECTION_CONVERSATION_PARTICIPANT_SCHEMA = Joi.object({
   conversationId: Joi.string().required().trim(),
   userId: Joi.string().required().trim(),
 
+  targetLanguage: Joi.string().optional().allow(null).default('en'),
+
   role: Joi.string()
     .valid(...Object.values(participantRoles))
     .default(participantRoles.MEMBER),

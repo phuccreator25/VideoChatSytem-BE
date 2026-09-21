@@ -94,7 +94,7 @@ const onGetConversationById = async ({ conversationId, currentUserId }) => {
     throw new Error("You are not a participant of this conversation");
   }
 
-  const [userData, contactData, messages, Invitation, pinMessages, block] = await Promise.all([
+  const [userData, contactData, messages, Invitation, pinMessages, block, targetLanguage] = await Promise.all([
     USER_REPOSITORY.findById(otherUserId),
     CONTACTS_REPOSITORY.findContactItem(currentUserId, otherUserId),
     MESSAGE_REPOSITORY.findByConversationId(conversationId, currentUserId, {
@@ -115,7 +115,8 @@ const onGetConversationById = async ({ conversationId, currentUserId }) => {
       ],
     }),
     CONVERSATION_REPOSITORY.findManyPinMessages(conversationId, currentUserId),
-    BLOCK_REPOSITORY.findBlockStatusBetweenUsers(currentUserId, otherUserId)
+    BLOCK_REPOSITORY.findBlockStatusBetweenUsers(currentUserId, otherUserId),
+    CONVERSATION_REPOSITORY.findTargetLanguage({conversationId, userId: currentUserId})
   ]);
 
   if (!userData) {
@@ -135,6 +136,7 @@ const onGetConversationById = async ({ conversationId, currentUserId }) => {
         isBlockedMe: block.isBlockedMe,
       },
       pinMessages,
+      targetLanguage
     },
     user: {
       userId: userData._id,
@@ -464,6 +466,42 @@ const onDeleteConversation = async ({ conversationId, currentUserId }) => {
   return conversation;
 };
 
+const onUpdateTargetLanguage = async ({conversationId, targetLanguage, currentUserId}) => {
+  if (!conversationId) throw new Error("Not found conversation");
+  if (!targetLanguage) throw new Error("Not found target language");
+
+  const conversation = await CONVERSATION_REPOSITORY.findOne({
+    _id: new ObjectId(conversationId),
+  });
+
+  if (!conversation) throw new Error("Not found conversation");
+
+  const otherUser = await CONVERSATION_PARTICIPANT_REPOSITORY.findOne({
+    conversationId,
+    userId: {
+      $ne: currentUserId,
+    },
+    leftAt: null,
+  });
+
+  const block = await BLOCK_REPOSITORY.findByBlock(currentUserId, otherUser.userId.toString());
+  if (block?.status === 'blocked') {
+    throw new Error("You are not allowed to perform this action. Please unblock the other person.");
+  }
+
+  await CONVERSATION_PARTICIPANT_REPOSITORY.updateOne(
+    { conversationId, userId: currentUserId },
+    {
+      $set: {
+        targetLanguage,
+        updatedAt: new Date(),
+      },
+    },
+  );
+
+  return targetLanguage;
+}
+
 export const CONVERSATION_SERVICE = {
   onGetOrCreateConversation,
   onGetConversationById,
@@ -472,5 +510,6 @@ export const CONVERSATION_SERVICE = {
   onGetPinMessages,
   onDeletePinMessages,
   onGetMoreMessages,
-  onDeleteConversation
+  onDeleteConversation,
+  onUpdateTargetLanguage
 };

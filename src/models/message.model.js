@@ -13,6 +13,12 @@ const COLLECTION_MESSAGE_SCHEMA = Joi.object({
     .required(),
 
   content: Joi.string().trim().allow(null, "").default(null),
+  translations: Joi.object()
+    .pattern(
+      Joi.string().trim().lowercase(), // Key là mã ngôn ngữ: "vi", "en", "ko",...
+      Joi.string().trim().allow(null, "") // Value là nội dung đã dịch
+    )
+    .default({}),
 
   attachments: Joi.array()
     .items(

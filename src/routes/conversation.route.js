@@ -10,6 +10,7 @@ conversationRouter.post('/conversations', authMiddleware, CONVERSATION_CONTROLLE
 conversationRouter.get('/conversations', authMiddleware, CONVERSATION_CONTROLLER.onGetConversation)
 conversationRouter.get('/conversations/pin-messages/:conversationId', authMiddleware, CONVERSATION_CONTROLLER.onGetPinMessages)
 conversationRouter.get('/conversations/:conversationId', authMiddleware, CONVERSATION_CONTROLLER.onGetConversationById)
+conversationRouter.put('/conversations/translation/:conversationId', authMiddleware, CONVERSATION_CONTROLLER.onTranslateMessage)
 
 conversationRouter.post('/conversations/more-messages', authMiddleware, CONVERSATION_CONTROLLER.onGetMoreMessages)
 conversationRouter.delete('/conversations/:conversationId', authMiddleware, CONVERSATION_CONTROLLER.onDeleteConversation)

@@ -36,6 +36,14 @@ const findOne = async (filter = {}, session = null) => {
   return result;
 };
 
+const findTargetLanguage = async (filter = {}) => {
+  const result = await GET_DB()
+    .collection(PARTICIPANT_COLLECTION_NAME)
+    .findOne(filter);
+
+  return result.targetLanguage;
+};
+
 const findConversationBetweenUser = async (currentUserId, userId) => {
   const userIds = [String(currentUserId), String(userId)];
 
@@ -640,5 +648,6 @@ export const CONVERSATION_REPOSITORY = {
   updateOne,
   findListByUserId,
   findManyPinMessages,
-  deletePinMessage
+  deletePinMessage,
+  findTargetLanguage
 };
