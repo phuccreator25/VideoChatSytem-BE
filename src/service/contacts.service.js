@@ -6,7 +6,10 @@ import { isUserOnline } from "../sockets/socketStore.js";
 
 const onGetData = async (currentUserId) => {
   const contacts = await CONTACTS_REPOSITORY.findMany(currentUserId);
-  return contacts;
+  return contacts.map((contact) => ({
+    ...contact,
+    isOnline: isUserOnline(contact.userId) ? "online" : "offline",
+  }));
 };
 
 const onUpdateContact = async ({ currentUserId, payload }) => {

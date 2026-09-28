@@ -738,12 +738,12 @@ const onGetAllAttachedFiles = async (currentUserId, page = 1, limit = 5) => {
 
     return {
       data: files.map((item) => ({
-        url: item.attachments.fileUrl,
-        name: item.attachments.fileName,
-        size: item.attachments.fileSize,
-        type: item.attachments.resourceType,
+        fileUrl: item.attachments.fileUrl,
+        fileName: item.attachments.fileName,
+        fileSize: item.attachments.fileSize,
+        mimeType: item.attachments.mimeType,
+        resourceType: item.attachments.resourceType,
         messageId: item._id,
-        attachmentId: item.attachments?._id,
         conversationId: item.conversationId,
         createdAt: item.createdAt ? new Date(item.createdAt) : null,
       })),
