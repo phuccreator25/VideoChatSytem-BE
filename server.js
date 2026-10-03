@@ -3,19 +3,21 @@ import cors from 'cors'
 import dotenv from 'dotenv'
 import cookieParser from 'cookie-parser'
 
-import userRouter from './src/routes/user.route.js'
-import invitationRouter from './src/routes/invitation.route.js'
-import contactRouter from './src/routes/contacts.route.js'
-import blockRouter from './src/routes/block.route.js'
-import conversationRouter from './src/routes/conversation.route.js'
+import userRouter from './src/routes/client/user.route.js'
+import invitationRouter from './src/routes/client/invitation.route.js'
+import contactRouter from './src/routes/client/contacts.route.js'
+import blockRouter from './src/routes/client/block.route.js'
+import conversationRouter from './src/routes/client/conversation.route.js'
 
 import { arjectProtection } from './src/middleware/arject.middleware.js'
 import { app, server } from './src/sockets/socket.js'
-import chatRouter from './src/routes/chat.route.js'
+import chatRouter from './src/routes/client/chat.route.js'
 import { USER_REPOSITORY } from './src/repository/user.repository.js'
-import callRouter from './src/routes/call.route.js'
+import callRouter from './src/routes/client/call.route.js'
 import env from './src/config/env.js'
-import uploadRouter from './src/routes/upload.route.js'
+import uploadRouter from './src/routes/client/upload.route.js'
+import userAdminRoutes from './src/routes/admin/userAdmin.route.js'
+import adminAuthRoutes from './src/routes/admin/adminAuth.route.js'
 
 dotenv.config()
 
@@ -24,9 +26,9 @@ const SERVER = async () => {
 
   //server restart thì chuyển toàn bộ sang offline tránh online ảo
   await USER_REPOSITORY.updateMany(
-    { status: "online" },
+    { isOnline: true },
     {
-      status: "offline",
+      isOnline: false,
       lastSeenAt: new Date(),
       updatedAt: new Date(),
     }
@@ -59,6 +61,10 @@ const SERVER = async () => {
   app.use('/api', chatRouter)
   app.use('/api', callRouter)
   app.use('/api', uploadRouter)
+
+  //admin routes
+  app.use('/api', userAdminRoutes)
+  app.use('/api', adminAuthRoutes)
 
   app.use((err, req, res, next) => {
     const statusCode = err.statusCode || 500

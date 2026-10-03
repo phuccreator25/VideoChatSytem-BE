@@ -1,9 +1,5 @@
-export const status =  {
-    ONLINE: 'online',
-    OFFLINE: 'offline'
-}
-
 export const role = {
-    AMDIN:'admin',
-    CLIENT:'client'
+    ADMIN:'admin',
+    CLIENT:'client',
+    SUPPER_ADMIN:'supper_admin'
 }

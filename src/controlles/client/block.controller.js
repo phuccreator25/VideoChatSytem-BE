@@ -1,0 +1,48 @@
+import { BLOCK_SERVICE } from "../../service/client/block.service.js"
+
+const onBlock = async(req, res, next) => {
+    try {
+        const currentUserId = req.user.id
+        const UserBlockedId = req.body.userId
+
+        const block = await BLOCK_SERVICE.onBlock({currentUserId, UserBlockedId})
+
+        return res.status(201).json({
+            data: block
+        })
+    } catch (error) {
+        next(error)
+    }
+}
+
+const onUnblock = async(req, res, next) => {
+    try {
+        const currentUserId = req.user.id
+        const UserBlockedId = req.body.userId
+
+        const unBlock = await BLOCK_SERVICE.onUnblock({currentUserId, UserBlockedId})
+
+        return res.status(201).json({
+            data: unBlock
+        })
+    } catch (error) {
+        next(error)
+    }
+}
+
+const onGetListBlockUser = async(req, res, next) => {
+    try {
+        const currentUserId = req.user.id
+        const blocks = await BLOCK_SERVICE.onGetListBlockUser({currentUserId})
+
+        return res.status(200).json({
+            data: blocks
+        })
+    } catch (error) {
+        next(error)
+    }
+}
+
+export const BLOCK_CONTROLLER = {
+    onBlock, onUnblock, onGetListBlockUser
+}

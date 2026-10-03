@@ -1,5 +1,4 @@
 import { speedToTextQueue } from "../../../queues/uploadFileQueue.js";
-import { CALL_SERVICE } from "../../../service/call.service.js";
 
 export const handleSpeedToText = async (io, socket, data) => {
     try {

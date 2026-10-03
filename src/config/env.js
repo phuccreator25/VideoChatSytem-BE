@@ -19,6 +19,7 @@ const env = {
   MAIL_FROM_NAME: process.env.MAIL_FROM_NAME,
 
   JWT_SECRET: process.env.JWT_SECRET,
+  JWT_SECRET_ADMIN: process.env.JWT_SECRET_ADMIN,
 
   NODE_ENV: process.env.NODE_ENV,
 

@@ -1,5 +1,5 @@
 import Joi from "joi";
-import { role, status } from "../data/user.data.js";
+import { role } from "../data/user.data.js";
 
 const COLECTION_USER_NAME = 'users'
 
@@ -21,16 +21,12 @@ const COLECTION_USER_SCHEMA = Joi.object({
   username: Joi.string().trim().min(3).max(30).default(null),
   fullname: Joi.string().trim().min(2).max(100).required(),
 
-  status: Joi.string()
-    .valid(...Object.values(status))
-    .default(status.OFFLINE),
-
   isBanned: Joi.boolean().default(false),
-
   bannedBy: Joi.string().allow(null, '').default(null),
-
   banReason: Joi.string().trim().allow('').default(''),
   bannedAt: Joi.date().allow(null).default(null),
+  unBannedAt: Joi.date().allow(null).default(null),
+  unBannedBy: Joi.string().allow(null, '').default(null),
 
   isActive: Joi.boolean().default(false),
   isOnline: Joi.boolean().default(false),
@@ -44,6 +40,9 @@ const COLECTION_USER_SCHEMA = Joi.object({
   
   verifyToken: Joi.string().default(null),
   expiredVerifyTokenAt: Joi.date().default(null),
+
+  createdBy: Joi.string().allow(null).default(null), // created admin
+  updatedBy: Joi.string().allow(null).default(null),
 
   createdAt: Joi.date().default(() => new Date()),
   updatedAt: Joi.date().allow(null).default(null)

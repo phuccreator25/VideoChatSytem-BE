@@ -15,3 +15,4 @@ export const linkPreviewQueue = new Queue("link-preview-queue", defaultQueueOpti
 export const sendMessageQueue = new Queue("send-message-queue", defaultQueueOptions);
 export const sendMessageQueueEvents = new QueueEvents("send-message-queue", { connection: redisQueueConnection });
 export const speedToTextQueue = new Queue("speed-to-text-queue", defaultQueueOptions);
+export const sendMailQueue = new Queue("send-mail", defaultQueueOptions);

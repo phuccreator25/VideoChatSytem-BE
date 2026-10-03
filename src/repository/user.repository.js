@@ -4,6 +4,7 @@ import { ObjectId } from "mongodb";
 import { INVITATION_MODEL } from "../models/invitation.model.js";
 import { invitationStatus } from "../data/invitation.data.js";
 import { CONTACT_MODEL } from "../models/contact.model.js";
+import { isUserOnline } from "../sockets/socketStore.js";
 
 const createOne = async (data) => {
   const dataValidate = await USER_MODEL.validateData(data);
@@ -50,6 +51,14 @@ const findByEmail = async (data) => {
     .findOne({ email: data });
   return user;
 };
+
+const findByUsername = async (data) => {
+  const user = GET_DB()
+    .collection(USER_MODEL.COLECTION_USER_NAME)
+    .findOne({ username: data });
+  return user;
+};
+
 
 const findByToken = async (data) => {
   const user = GET_DB()
@@ -226,13 +235,13 @@ const updateOne = async (data) => {
     );
 };
 
-const updateById = async ({ _id, data }) => {
+const updateById = async ({ _id, data, options = {} }) => {
   const result = await GET_DB()
     .collection(USER_MODEL.COLECTION_USER_NAME)
     .findOneAndUpdate(
       { _id: new ObjectId(_id) },
       { $set: data },
-      { returnDocument: "after" },
+      { ...options, returnDocument: "after" },
     );
 
   return result;
@@ -261,6 +270,146 @@ const updateMany = async (filter = {}, data = {}, options = {}) => {
     );
 };
 
+//ADMIN
+const findDataUser = async ({
+  query = {},
+  page = 1,
+  limit = 10,
+  sort = { createdAt: -1 }
+}) => {
+  const skip = (Math.max(1, page) - 1) * Number(limit);
+  const parsedLimit = Number(limit);
+
+  const { search, ...otherFilters } = query;
+  const finalQuery = { ...otherFilters };
+
+  if (search && String(search).trim() !== '') {
+    const keyword = String(search).trim();
+    const formatKeywords = keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const searchRegex = new RegExp(formatKeywords, 'i');
+
+    finalQuery.$or = [
+      { fullname: searchRegex },
+      { username: searchRegex },
+      { email: searchRegex }
+    ];
+  }
+
+  const pipeline = [
+    { $match: finalQuery },
+    { $sort: sort },
+    { $skip: skip },
+    { $limit: parsedLimit },
+    {
+      $lookup: {
+        from: USER_MODEL.COLECTION_USER_NAME,
+        let: { creatorId: '$createdBy' },
+        pipeline: [
+          {
+            $match: {
+              $expr: {
+                $eq: ['$_id', { $toObjectId: '$$creatorId' }]
+              }
+            }
+          },
+          {
+            $project: {
+              _id: 1,
+              fullname: 1,
+              username: 1,
+              email: 1,
+              avatar: 1
+            }
+          }
+        ],
+        as: 'createdByUser'
+      }
+    },
+    {
+      $unwind: {
+        path: '$createdByUser',
+        preserveNullAndEmptyArrays: true
+      }
+    },
+    //Info bannedBy
+    {
+      $lookup: {
+        from: USER_MODEL.COLECTION_USER_NAME,
+        let: { banId: '$bannedBy' },
+        pipeline: [
+          {
+            $match: {
+              $expr: {
+                $and: [
+                  { $ne: ['$$banId', null] },
+                  { $eq: ['$_id', { $toObjectId: '$$banId' }] }
+                ]
+              }
+            }
+          },
+          {
+            $project: {
+              _id: 1,
+              fullname: 1,
+              username: 1,
+              email: 1,
+              avatar: 1
+            }
+          }
+        ],
+        as: 'bannedByInfo'
+      }
+    },
+    {
+      $unwind: {
+        path: '$bannedByInfo',
+        preserveNullAndEmptyArrays: true
+      }
+    },
+    {
+      $project: {
+        password: 0,
+        verifyToken: 0,
+        expiredVerifyTokenAt: 0,
+        codeReset: 0,
+        expiredCodeResetAt: 0,
+        showOnlineStatus: 0
+      }
+    }
+  ];
+
+  const [users, totalUsers] = await Promise.all([
+    GET_DB()
+      .collection(USER_MODEL.COLECTION_USER_NAME)
+      .aggregate(pipeline)
+      .toArray(),
+    GET_DB()
+      .collection(USER_MODEL.COLECTION_USER_NAME)
+      .countDocuments(finalQuery)
+  ]);
+
+  return {
+    data: users.map(user => {
+      return {
+        ...user,
+        isOnline: isUserOnline(user._id),
+      }
+    }),
+    pagination: {
+      total: totalUsers,
+      totalPages: Math.ceil(totalUsers / limit),
+      page: Number(page),
+      limit: Number(limit),
+    }
+  };
+}
+
+const countData = async ({ filters = {} }) => {
+  return await GET_DB()
+    .collection(USER_MODEL.COLECTION_USER_NAME)
+    .countDocuments(filters)
+}
+
 export const USER_REPOSITORY = {
   createOne,
   findById,
@@ -270,5 +419,8 @@ export const USER_REPOSITORY = {
   updateById,
   findByUser,
   findByToken,
-  updateMany
+  updateMany,
+  findDataUser,
+  findByUsername,
+  countData
 };

@@ -1,6 +1,6 @@
 import { callStatuses } from "../data/call.data.js";
 import { CALL_REPOSITORY } from "../repository/call.repository.js";
-import { CALL_SERVICE } from "../service/call.service.js";
+import { CALL_SERVICE } from "../service/client/call.service.js";
 import { emitCallOffer, emitCallRinging } from "./emitters/call.emiter.js";
 import { ObjectId } from "mongodb";
 
@@ -51,13 +51,13 @@ export function addUserSocket(userId, sessionId, socket) {
 
   userSocketMap[userId][sessionId][socket.id] = socket;
 
-  // 🔥 TỰ ĐỘNG PHÁT LẠI CUỘC GỌI ĐANG CHỜ (PENDING OFFER) KHI USER VỪA ONLINE LẠI
+  // TỰ ĐỘNG PHÁT LẠI CUỘC GỌI ĐANG CHỜ (PENDING OFFER) KHI USER VỪA ONLINE LẠI
   const pendingOffer = pendingOfferMap.get(String(userId));
   if (pendingOffer) {
     pendingOfferMap.delete(String(userId));
     CALL_REPOSITORY.findOne({ _id: new ObjectId(pendingOffer.callId) }).then((call) => {
       if (call && call.status === callStatuses.RINGING) {
-        console.log(`🔥 User ${userId} vừa online! Bù lại gói call:offer đang chờ.`);
+        console.log(` User ${userId} vừa online! Bù lại gói call:offer đang chờ.`);
         clearCallTimer(pendingOffer.callId);
 
         emitCallOffer(userId, pendingOffer);
@@ -82,9 +82,7 @@ export function addUserSocket(userId, sessionId, socket) {
   }
 }
 
-/**
- * Quản lý cuộc gọi đang chờ Callee (Pending Offers trong RAM)
- */
+// Quản lý cuộc gọi đang chờ
 export function setPendingOffer(calleeId, offerPayload) {
   if (!calleeId || !offerPayload) return;
   pendingOfferMap.set(String(calleeId), offerPayload);

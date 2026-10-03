@@ -1,5 +1,5 @@
 import { Worker } from "bullmq";
-import { CHAT_SERVICE } from "../service/chat.service.js";
+import { CHAT_SERVICE } from "../service/client/chat.service.js";
 import { redisQueueConnection } from "../config/redis.js";
 
 export const shareMessageWorker = new Worker(

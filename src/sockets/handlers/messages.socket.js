@@ -1,6 +1,5 @@
 import { CONVERSATION_PARTICIPANT_REPOSITORY } from "../../repository/conversationParticipant.repository.js";
-import { MESSAGE_REPOSITORY } from "../../repository/message.repository.js";
-import { CHAT_SERVICE } from "../../service/chat.service.js";
+import { CHAT_SERVICE } from "../../service/client/chat.service.js";
 import { emitToUser } from "../socketStore.js";
 
 export const registerMessageSocket = (io, socket) => {

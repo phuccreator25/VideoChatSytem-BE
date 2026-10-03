@@ -15,3 +15,8 @@ export const emitAuthEventToUser = (userId, eventName, payload) => {
 export const emitBanSessionEvent = (userId, sessionId, payload) => {
   emitToSession(userId, sessionId, "auth:session_banned", payload);
 };
+
+//BAN USER (ALL SESSION)
+export const emitBanUserEvent = (userId, payload) => {
+  emitToUser(userId, "auth:session_banned", payload);
+};

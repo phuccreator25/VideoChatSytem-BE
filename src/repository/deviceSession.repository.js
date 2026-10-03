@@ -37,10 +37,10 @@ const findMany = async (filters = {}, options = {}) => {
   return await cursor.toArray();
 };
 
-const updateMany = async (filters, updatedData) => {
+const updateMany = async (filters, updatedData, options = {}) => {
   return await GET_DB()
     .collection(DEVICE_SESSION_MODEL.COLECTION_DEVICE_SESSION_NAME)
-    .updateMany(filters, { $set: updatedData });
+    .updateMany(filters, { $set: updatedData }, options);
 };
 
 export const DEVICE_SESSION_REPOSITORY = {

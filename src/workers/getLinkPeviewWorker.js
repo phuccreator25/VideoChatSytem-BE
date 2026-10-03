@@ -2,7 +2,7 @@ import { Worker } from "bullmq";
 import { ObjectId } from "mongodb";
 import { emitUpdateLinkPreview } from "../sockets/emitters/messages.emitter.js";
 import { MESSAGE_REPOSITORY } from "../repository/message.repository.js";
-import { CHAT_SERVICE } from "../service/chat.service.js";
+import { CHAT_SERVICE } from "../service/client/chat.service.js";
 import { redisQueueConnection } from "../config/redis.js";
 
 export const getLinkPeviewWorker = new Worker(

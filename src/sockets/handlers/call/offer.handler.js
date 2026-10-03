@@ -2,7 +2,7 @@ import { ObjectId } from "mongodb";
 import { callStatuses } from "../../../data/call.data.js";
 import { CALL_REPOSITORY } from "../../../repository/call.repository.js";
 import { CONTACTS_REPOSITORY } from "../../../repository/contacts.repository.js";
-import { CALL_SERVICE } from "../../../service/call.service.js";
+import { CALL_SERVICE } from "../../../service/client/call.service.js";
 import { emitCallInitiated, emitCallOffer, emitCallOffline, emitCallRinging } from "../../emitters/call.emiter.js";
 import { addCallParticipants, isUserOnline, removePendingOffer, setPendingOffer, setCallTimer } from "../../socketStore.js";
 
@@ -32,7 +32,7 @@ export const handleCallOffer = async (io, socket, data) => {
             avatar: callerData.avatar,
             fullname: callerData.fullname,
             nickname: callerData.nickname,
-            isOnline: "online",
+            isOnline: true,
         } : null;
 
         const isOnlineCallee = isUserOnline(calleeId);

@@ -1,5 +1,5 @@
-import { MESSAGE_DELIVERY_SERVICE } from "../../service/messageDelivery.service.js";
-import { USER_SERVICE } from "../../service/user.service.js";
+import { MESSAGE_DELIVERY_SERVICE } from "../../service/client/messageDelivery.service.js";
+import { USER_SERVICE } from "../../service/client/user.service.js";
 
 export const registerAuthSocket = async (io, socket) => {
   const userId = socket.userId;

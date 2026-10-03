@@ -1,5 +1,5 @@
 import { Worker } from "bullmq";
-import { CALL_SERVICE } from "../service/call.service.js";
+import { CALL_SERVICE } from "../service/client/call.service.js";
 import { redisQueueConnection } from "../config/redis.js";
 
 export const speedToTextWorker = new Worker(
