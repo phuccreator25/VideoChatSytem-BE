@@ -30,7 +30,6 @@ const onLogin = async(req, res, next) => {
 
         res.cookie("adminRefreshToken", result.refreshToken, {
             httpOnly: true,
-            // sameSite: "strict",
             secure: true,
             sameSite: "none",
         });
@@ -55,7 +54,91 @@ const onLogin = async(req, res, next) => {
     }
 }
 
+const onRefreshToken = async(req, res, next) => {
+    try {
+        const isRefreshToken = req.cookies?.adminRefreshToken;
+
+        if (!isRefreshToken) {
+            return res.status(401).json({
+                message: "Please login again",
+            })
+        }
+
+        const result = await ADMIN_AUTH_SERVICE.onRefreshToken(isRefreshToken);
+
+        res.cookie("adminAccessToken", result.token, {
+            httpOnly: true,
+            secure: true,
+            sameSite: "none",
+        });
+
+        res.cookie("adminRefreshToken", result.refreshToken, {
+            httpOnly: true,
+            secure: true,
+            sameSite: "none",
+        });
+
+        return res.status(200).json({
+            message: "Refresh token successful",
+            data: {
+                _id: result.data._id,
+                username: result.data.username,
+                email: result.data.email,
+                fullname: result.data.fullname,
+                avatar: result.data.avatar,
+                role: result.data.role,
+                isActive: result.data.isActive,
+                createdAt: result.data.createdAt,
+                updatedAt: result.data.updatedAt,
+            }
+        });
+    } catch (error) {
+        next(error)
+    }
+}
+
+const onLogOut = async (req, res, next) => {
+  try {
+    const refreshToken = req.cookies?.adminRefreshToken;
+
+    if (refreshToken) {
+      await ADMIN_AUTH_SERVICE.onLogOut(refreshToken);
+    }
+
+    res.clearCookie("adminAccessToken", {
+      httpOnly: true,
+      secure: true,
+      sameSite: "none",
+    });
+
+    res.clearCookie("adminRefreshToken", {
+      httpOnly: true,
+      secure: true,
+      sameSite: "none",
+    });
+
+    return res.status(200).json({
+      message: "Logout successful",
+    });
+  } catch (error) {
+    res.clearCookie("adminAccessToken", {
+      httpOnly: true,
+      secure: true,
+      sameSite: "none",
+    });
+
+    res.clearCookie("adminRefreshToken", {
+      httpOnly: true,
+      secure: true,
+      sameSite: "none",
+    });
+
+    next(error)
+  }
+};
 
 export const ADMIN_AUTH_CONTROLLER = {
     onLogin,
+    onLogOut,
+    onRefreshToken
 }

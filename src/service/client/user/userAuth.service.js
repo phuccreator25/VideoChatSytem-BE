@@ -9,6 +9,7 @@ import { disconnectUserSession } from "../../../sockets/socketStore.js";
 import { emitBanSessionEvent, emitBanUserEvent } from "../../../sockets/emitters/auth.emitter.js";
 import { handleDeviceSession } from "../../../helper/deviceSession.js";
 import { client } from "../../../config/database.js";
+import { role } from "../../../data/user.data.js";
 
 export const onRegister = async (payload) => {
   try {
@@ -261,16 +262,16 @@ export const onResetPassword = async (payload) => {
 
 export const onRefreshToken = async (refreshToken) => {
   try {
+
+    if(!refreshToken) throw new Error("Refresh token is required")
+
     const session = await DEVICE_SESSION_REPOSITORY.findOne({
       refreshToken: refreshToken,
+      revokedAt: null,
     });
 
     if (!session) {
       throw new Error("Login session does not exist");
-    }
-
-    if (session.revokedAt) {
-      throw new Error("Login session has been revoked, please log in again");
     }
 
     if (new Date() > new Date(session.expiredAt)) {
@@ -283,10 +284,18 @@ export const onRefreshToken = async (refreshToken) => {
       throw new Error("Account does not exist");
     }
 
+    if(!user.isActive){
+      throw new Error("Account is not activated yet");
+    }
+
     if (user.isBanned) {
       throw new Error(
         "Your account has been locked, please contact support",
       );
+    }
+
+    if(user.role !== role.CLIENT){
+      throw new Error("Account not found. Please try again")
     }
 
     const data = {

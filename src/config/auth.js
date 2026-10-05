@@ -1,2 +1,2 @@
 export const EXP_REFRESH_TOKEN = 7
-export const EXP_TOKEN = 60
+export const EXP_TOKEN = 15

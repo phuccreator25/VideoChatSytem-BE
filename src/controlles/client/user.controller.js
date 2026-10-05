@@ -82,8 +82,6 @@ const onLogOut = async (req, res, next) => {
       await USER_SERVICE.onLogOut(refreshToken);
     }
 
-    const isProduction = env.NODE_ENV === "production";
-
     res.clearCookie("accessToken", {
       httpOnly: true,
       secure: true,
@@ -100,8 +98,6 @@ const onLogOut = async (req, res, next) => {
       message: "Logout successful",
     });
   } catch (error) {
-    const isProduction = env.NODE_ENV === "production";
-
     res.clearCookie("accessToken", {
       httpOnly: true,
       secure: true,
