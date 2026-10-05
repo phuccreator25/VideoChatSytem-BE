@@ -55,10 +55,11 @@ const findByEmail = async (data) => {
 const findByUsername = async (data) => {
   const user = GET_DB()
     .collection(USER_MODEL.COLECTION_USER_NAME)
-    .findOne({ username: data });
+    .findOne({ 
+      username: data 
+    });
   return user;
 };
-
 
 const findByToken = async (data) => {
   const user = GET_DB()
@@ -410,6 +411,62 @@ const countData = async ({ filters = {} }) => {
     .countDocuments(filters)
 }
 
+const findProfileByUser = async ({ filter = {} }) => {
+  const pipeline = [
+    { $match: filter },
+    { $limit: 1 },
+    {
+      $lookup: {
+        from: USER_MODEL.COLECTION_USER_NAME,
+        let: { creatorId: '$createdBy' },
+        pipeline: [
+          {
+            $match: {
+              $expr: {
+                $eq: ['$_id', { $toObjectId: '$$creatorId' }]
+              }
+            }
+          },
+          {
+            $project: {
+              _id: 1,
+              fullname: 1,
+            }
+          }
+        ],
+        as: 'createdByUser'
+      }
+    },
+    {
+      $unwind: {
+        path: '$createdByUser',
+        preserveNullAndEmptyArrays: true
+      }
+    },
+    {
+      $project: {
+        _id: 1,
+        username: 1,
+        email: 1, 
+        fullname: 1,
+        avatar: 1,
+        role: 1,
+        isActive: 1,
+        createdAt: 1,
+        updatedAt: 1,
+        createdByUser: 1,
+      }
+    }
+  ];
+
+  const result = await GET_DB()
+    .collection(USER_MODEL.COLECTION_USER_NAME)
+    .aggregate(pipeline)
+    .toArray()
+  
+  return result[0] || null
+}
+
 export const USER_REPOSITORY = {
   createOne,
   findById,
@@ -422,5 +479,6 @@ export const USER_REPOSITORY = {
   updateMany,
   findDataUser,
   findByUsername,
-  countData
+  countData,
+  findProfileByUser
 };

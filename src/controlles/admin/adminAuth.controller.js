@@ -37,7 +37,17 @@ const onLogin = async(req, res, next) => {
 
         return res.status(200).json({
             message: "Login successful",
-            data: result.data
+            data: {
+                _id: result.data._id,
+                username: result.data.username,
+                email: result.data.email,
+                fullname: result.data.fullname,
+                avatar: result.data.avatar,
+                role: result.data.role,
+                isActive: result.data.isActive,
+                createdAt: result.data.createdAt,
+                updatedAt: result.data.updatedAt,
+            }
         });
         
     } catch (error) {
@@ -45,6 +55,7 @@ const onLogin = async(req, res, next) => {
     }
 }
 
+
 export const ADMIN_AUTH_CONTROLLER = {
-    onLogin
+    onLogin,
 }

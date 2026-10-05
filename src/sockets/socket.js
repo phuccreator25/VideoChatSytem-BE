@@ -1,7 +1,6 @@
 import { Server } from "socket.io";
 import http from "http";
 import express from "express";
-import env from "../config/env.js";
 import { socketMiddleware } from "../middleware/socketMiddleware.js";
 import { registerAuthSocket } from "./handlers/auth.socket.js";
 import { registerMessageSocket, registerTypingMessageSocket } from "./handlers/messages.socket.js";

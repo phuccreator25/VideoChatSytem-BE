@@ -18,6 +18,7 @@ import env from './src/config/env.js'
 import uploadRouter from './src/routes/client/upload.route.js'
 import userAdminRoutes from './src/routes/admin/userAdmin.route.js'
 import adminAuthRoutes from './src/routes/admin/adminAuth.route.js'
+import profileAdminRoutes from './src/routes/admin/profileAdmin.route.js'
 
 dotenv.config()
 
@@ -65,6 +66,7 @@ const SERVER = async () => {
   //admin routes
   app.use('/api', userAdminRoutes)
   app.use('/api', adminAuthRoutes)
+  app.use('/api', profileAdminRoutes)
 
   app.use((err, req, res, next) => {
     const statusCode = err.statusCode || 500
