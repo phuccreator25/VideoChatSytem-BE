@@ -278,21 +278,30 @@ const findDataUser = async ({
   limit = 10,
   sort = { createdAt: -1 }
 }) => {
-  const skip = (Math.max(1, page) - 1) * Number(limit);
+  const pageNum = Math.max(1, Number(page));
   const parsedLimit = Number(limit);
+  const skip = (pageNum - 1) * parsedLimit;
 
   const { search, ...otherFilters } = query;
   const finalQuery = { ...otherFilters };
 
   if (search && String(search).trim() !== '') {
-    const keyword = String(search).trim();
-    const formatKeywords = keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const searchRegex = new RegExp(formatKeywords, 'i');
+    const keyword = String(search).trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const searchRegex = new RegExp(keyword, 'i');
+    const emailRegex = new RegExp(`^[^@]*${keyword}`, 'i');
+
+    const matchedUsers = await GET_DB()
+      .collection(USER_MODEL.COLECTION_USER_NAME)
+      .find(
+        { $or: [{ fullname: searchRegex }, { username: searchRegex }, { email: emailRegex }] },
+        { projection: { _id: 1 } }
+      )
+      .toArray();
 
     finalQuery.$or = [
       { fullname: searchRegex },
       { username: searchRegex },
-      { email: searchRegex }
+      { email: emailRegex }
     ];
   }
 
@@ -309,7 +318,12 @@ const findDataUser = async ({
           {
             $match: {
               $expr: {
-                $eq: ['$_id', { $toObjectId: '$$creatorId' }]
+                $and: [
+                  { $ne: ['$$creatorId', null] },
+                  { $ne: ['$$creatorId', ''] },
+                  { $eq: [{ $strLenCP: { $ifNull: ['$$creatorId', ''] } }, 24] },
+                  { $eq: ['$_id', { $toObjectId: '$$creatorId' }] }
+                ]
               }
             }
           },
@@ -332,7 +346,7 @@ const findDataUser = async ({
         preserveNullAndEmptyArrays: true
       }
     },
-    //Info bannedBy
+
     {
       $lookup: {
         from: USER_MODEL.COLECTION_USER_NAME,
@@ -343,6 +357,8 @@ const findDataUser = async ({
               $expr: {
                 $and: [
                   { $ne: ['$$banId', null] },
+                  { $ne: ['$$banId', ''] },
+                  { $eq: [{ $strLenCP: { $ifNull: ['$$banId', ''] } }, 24] },
                   { $eq: ['$_id', { $toObjectId: '$$banId' }] }
                 ]
               }
@@ -367,6 +383,7 @@ const findDataUser = async ({
         preserveNullAndEmptyArrays: true
       }
     },
+
     {
       $project: {
         password: 0,
@@ -380,30 +397,23 @@ const findDataUser = async ({
   ];
 
   const [users, totalUsers] = await Promise.all([
-    GET_DB()
-      .collection(USER_MODEL.COLECTION_USER_NAME)
-      .aggregate(pipeline)
-      .toArray(),
-    GET_DB()
-      .collection(USER_MODEL.COLECTION_USER_NAME)
-      .countDocuments(finalQuery)
+    GET_DB().collection(USER_MODEL.COLECTION_USER_NAME).aggregate(pipeline).toArray(),
+    GET_DB().collection(USER_MODEL.COLECTION_USER_NAME).countDocuments(finalQuery)
   ]);
 
   return {
-    data: users.map(user => {
-      return {
-        ...user,
-        isOnline: isUserOnline(user._id),
-      }
-    }),
+    data: users.map(user => ({
+      ...user,
+      isOnline: isUserOnline(user._id)
+    })),
     pagination: {
       total: totalUsers,
-      totalPages: Math.ceil(totalUsers / limit),
-      page: Number(page),
-      limit: Number(limit),
+      totalPages: Math.ceil(totalUsers / parsedLimit),
+      page: pageNum,
+      limit: parsedLimit
     }
   };
-}
+};
 
 const countData = async ({ filters = {} }) => {
   return await GET_DB()

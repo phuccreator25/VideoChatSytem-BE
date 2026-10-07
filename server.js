@@ -19,6 +19,7 @@ import uploadRouter from './src/routes/client/upload.route.js'
 import userAdminRoutes from './src/routes/admin/userAdmin.route.js'
 import adminAuthRoutes from './src/routes/admin/adminAuth.route.js'
 import profileAdminRoutes from './src/routes/admin/profileAdmin.route.js'
+import callAdminRoutes from './src/routes/admin/callAdmin.route.js'
 
 dotenv.config()
 
@@ -52,7 +53,7 @@ const SERVER = async () => {
   //   app.use(express.json())
   app.use(cookieParser());
 
-  app.use(arjectProtection);
+  // app.use(arjectProtection);
 
   app.use('/api', userRouter)
   app.use('/api', invitationRouter)
@@ -67,6 +68,7 @@ const SERVER = async () => {
   app.use('/api', userAdminRoutes)
   app.use('/api', adminAuthRoutes)
   app.use('/api', profileAdminRoutes)
+  app.use('/api', callAdminRoutes)
 
   app.use((err, req, res, next) => {
     const statusCode = err.statusCode || 500

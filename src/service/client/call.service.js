@@ -1,5 +1,5 @@
 import { CALL_REPOSITORY } from '../../repository/call.repository.js';
-import { callStatuses, participantRoles, participantStatuses, vectorStatus } from '../../data/call.data.js';
+import { callEndReasons, callStatuses, participantRoles, participantStatuses, vectorStatus } from '../../data/call.data.js';
 import { ObjectId } from 'mongodb';
 import { emitAcceptCall, emitCallEnd } from '../../sockets/emitters/call.emiter.js';
 import { endCallSession, isUserOnline, removeSharingScreen, clearCallTimer, removePendingOffer } from '../../sockets/socketStore.js';
@@ -135,6 +135,7 @@ const onEndCall = async ({ callId, currentUserId, reason = null }) => {
 
         let updatedStatus = call.status;
         let shouldCloseUI = false;
+        
 
         // Nếu số người hoạt động còn lại <= 1, đóng cuộc gọi hoàn toàn
         if (activeParticipants.length <= 1) {
@@ -160,37 +161,25 @@ const onEndCall = async ({ callId, currentUserId, reason = null }) => {
 
         const hasTranscript = Array.isArray(call.transcript) && call.transcript.length > 0;
         const isCompleted = updatedStatus === callStatuses.COMPLETED;
+        const durationSec = isCompleted && call.endedAt && call.startedAt
+                ? Math.max(0, Math.floor((call.endedAt - call.startedAt) / 1000))
+                : 0;
 
         //Check xem hook bắn chưa
         const shouldTriggerRagWebhook = shouldCloseUI && isCompleted && hasTranscript && !call.isVectorIndexed;
 
-        // Cập nhật trạng thái Call vào Database
-        await CALL_REPOSITORY.updateOne({
-            _id: new ObjectId(callId)
-        }, {
-            $set: {
-                status: updatedStatus,
-                endedAt: call.endedAt,
-                updatedAt: new Date(),
-                participants: call.participants,
-                isVectorIndexed: shouldTriggerRagWebhook ? vectorStatus.PENDING : vectorStatus.FAILED
-            }
-        }, session);
-
         let createdCallMessage = null;
+        let endReason = null;
+        let callLogStatus = updatedStatus;
 
         // Ghi MESSAGE & DELIVERY KHI CUỘC GỌI HOÀN TOÀN KẾT THÚC
         if (shouldCloseUI) {
             const callerId = call.participants[0]?.userId;
-            const durationSec = isCompleted && call.endedAt && call.startedAt
-                ? Math.max(0, Math.floor((call.endedAt - call.startedAt) / 1000))
-                : 0;
-
-            let callLogStatus = updatedStatus;
 
             if (!isCompleted) {
-                if (reason === 'timeout' || reason === 'missed') {
+                if (reason === callEndReasons.TIMEOUT || reason === callStatuses.MISSED) {
                     callLogStatus = callStatuses.MISSED;
+                    endReason = callEndReasons.TIMEOUT;
                 } else {
                     const callerParticipant = call.participants.find(p => p.role === participantRoles.CALLER);
                     const isCallerEnd = callerParticipant && callerParticipant.userId.toString() === currentUserId.toString();
@@ -198,12 +187,19 @@ const onEndCall = async ({ callId, currentUserId, reason = null }) => {
 
                     if (isCallerEnd) {
                         callLogStatus = callStatuses.CANCELLED;
+                        endReason = callEndReasons.NORMAL;
                     } else if (isCalleeReject) {
                         callLogStatus = callStatuses.REJECTED;
+                        endReason = callEndReasons.NORMAL;
                     } else {
                         callLogStatus = callStatuses.MISSED;
+                        endReason = callEndReasons.TIMEOUT;
                     }
                 }
+            }
+
+            if (reason === callEndReasons.NETWORK_LOST) {
+                endReason = callEndReasons.NETWORK_LOST;
             }
 
             // Tạo Message Log Cuộc Gọi
@@ -241,6 +237,21 @@ const onEndCall = async ({ callId, currentUserId, reason = null }) => {
                 }, session);
             }
         }
+
+        // Cập nhật trạng thái Call vào Database
+        await CALL_REPOSITORY.updateOne({
+            _id: new ObjectId(callId)
+        }, {
+            $set: {
+                status: callLogStatus,
+                endedAt: call.endedAt,
+                updatedAt: new Date(),
+                participants: call.participants,
+                isVectorIndexed: shouldTriggerRagWebhook ? vectorStatus.PENDING : vectorStatus.FAILED,
+                duration: durationSec,
+                endReason: endReason ?? callEndReasons.NORMAL,
+            }
+        }, session);
 
         await session.commitTransaction();
         session.endSession();

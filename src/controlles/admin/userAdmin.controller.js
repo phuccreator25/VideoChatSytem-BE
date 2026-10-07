@@ -10,19 +10,24 @@ const onGetDataUser = async(req, res, next) => {
         const page = Math.max(1, parseInt(req.query.page, 10) || 1);
         const limit = Math.min(100, Math.max(1, parseInt(req.query.limit, 10) || 10));
 
+        const { isActive, isOnline, isBanned, role, search } = req.query;
         const filter = {};
         
-        const isActive = parseBooleanQuery(req.query.isActive);
-        if (isActive !== undefined) filter.isActive = isActive;
+        const parsedIsActive = parseBooleanQuery(isActive);
+        if (parsedIsActive !== undefined) filter.isActive = parsedIsActive;
 
-        const isOnline = parseBooleanQuery(req.query.isOnline);
-        if (isOnline !== undefined) filter.isOnline = isOnline;
+        const parsedIsOnline = parseBooleanQuery(isOnline);
+        if (parsedIsOnline !== undefined) filter.isOnline = parsedIsOnline;
 
-        const isBanned = parseBooleanQuery(req.query.isBanned);
-        if (isBanned !== undefined) filter.isBanned = isBanned;
+        const parsedIsBanned = parseBooleanQuery(isBanned);
+        if (parsedIsBanned !== undefined) filter.isBanned = parsedIsBanned;
 
-        if (req.query.role && req.query.role !== 'all') {
-            filter.role = req.query.role;
+        if (role && role !== 'all') {
+            filter.role = role;
+        }
+
+        if (search && search.trim() !== '') {
+            filter.search = search.trim();
         }
 
         const dataUsers = await USER_ADMIN_SERVICE.onGetDataUser({ filter, page, limit });

@@ -14,10 +14,10 @@ const onGetTurnCredentials = async (req, res, next) => {
 
 const onEndCall = async (req, res, next) => {
     try {
-        const { callId } = req.body
+        const { callId, endReason } = req.body
         const currentUserId = req.user.id
 
-        const call = await CALL_SERVICE.onEndCall({ callId, currentUserId })
+        const call = await CALL_SERVICE.onEndCall({ callId, currentUserId, reason: endReason })
 
         return res.status(200).json({
             data: call

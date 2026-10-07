@@ -303,7 +303,7 @@ export const onRefreshToken = async (refreshToken) => {
       ...session,
     };
 
-    return await handleUpdateDeviceSession(data);
+    return await handleDeviceSession(data);
   } catch (error) {
     console.log("REFRESH TOKEN ", error);
     throw error;

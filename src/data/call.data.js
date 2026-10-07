@@ -4,12 +4,18 @@ export const callTypes = {
 };
 
 export const callStatuses = {
-    RINGING: "ringing",
-    COMPLETED: "completed",
-    REJECTED: "rejected",
-    ACTIVE: "active",
-    MISSED: "missed",
-    CANCELLED: "cancelled",
+  RINGING: "ringing",
+  ACTIVE: "active",
+  COMPLETED: "completed",
+  REJECTED: "rejected",
+  MISSED: "missed",
+  CANCELLED: "cancelled",
+};
+
+export const callEndReasons = {
+  NORMAL: "normal",
+  NETWORK_LOST: "network_lost",
+  TIMEOUT: "timeout",
 };
 
 export const participantRoles = {

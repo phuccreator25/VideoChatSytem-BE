@@ -1,5 +1,5 @@
 import Joi from "joi";
-import { callTypes, callStatuses, participantRoles, participantStatuses, vectorStatus } from "../data/call.data.js";
+import { callTypes, callStatuses, callEndReasons, participantRoles, participantStatuses, vectorStatus } from "../data/call.data.js";
 
 const COLLECTION_CALL_NAME = "calls";
 
@@ -16,6 +16,13 @@ const COLLECTION_CALL_SCHEMA = Joi.object({
 
     startedAt: Joi.date().allow(null).default(null),
     endedAt: Joi.date().allow(null).default(null),
+
+    duration: Joi.number().integer().min(0).default(0),
+
+    endReason: Joi.string()
+        .valid(...Object.values(callEndReasons))
+        .allow(null)
+        .default(null),
 
     participants: Joi.array()
         .items(

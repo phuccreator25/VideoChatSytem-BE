@@ -1,5 +1,5 @@
 import { ObjectId } from "mongodb";
-import { callStatuses } from "../../../data/call.data.js";
+import { callEndReasons, callStatuses } from "../../../data/call.data.js";
 import { CALL_REPOSITORY } from "../../../repository/call.repository.js";
 import { CONTACTS_REPOSITORY } from "../../../repository/contacts.repository.js";
 import { CALL_SERVICE } from "../../../service/client/call.service.js";
@@ -9,8 +9,6 @@ import { addCallParticipants, isUserOnline, removePendingOffer, setPendingOffer,
 export const handleCallOffer = async (io, socket, data) => {
     try {
         const { conversationId, callerId, calleeId, offer, type } = data;
-        console.log('Type socker: ', type);
-
 
         if (!callerId || !calleeId || !offer || !conversationId || !type) {
             socket.emit("call:offer:error", {
@@ -66,7 +64,7 @@ export const handleCallOffer = async (io, socket, data) => {
                         await CALL_SERVICE.onEndCall({
                             callId: result.insertedId.toString(),
                             currentUserId: callerId,
-                            reason: 'timeout',
+                            reason: callEndReasons.TIMEOUT,
                         });
                     }
                 } catch (err) {
@@ -91,7 +89,7 @@ export const handleCallOffer = async (io, socket, data) => {
                         await CALL_SERVICE.onEndCall({
                             callId: result.insertedId.toString(),
                             currentUserId: callerId,
-                            reason: 'missed',
+                            reason: callStatuses.MISSED,
                         });
                     }
                 } catch (err) {
