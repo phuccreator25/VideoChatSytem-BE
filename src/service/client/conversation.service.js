@@ -76,6 +76,8 @@ const onGetOrCreateConversation = async ({ currentUserId, userId }) => {
 
 const onGetConversationById = async ({ conversationId, currentUserId }) => {
   if (!conversationId) throw new Error("Conversation ID is required");
+  console.log('current: ', currentUserId);
+  
 
   const conversation = await CONVERSATION_REPOSITORY.findOne({
     _id: new ObjectId(conversationId),

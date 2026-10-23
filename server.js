@@ -20,6 +20,8 @@ import userAdminRoutes from './src/routes/admin/userAdmin.route.js'
 import adminAuthRoutes from './src/routes/admin/adminAuth.route.js'
 import profileAdminRoutes from './src/routes/admin/profileAdmin.route.js'
 import callAdminRoutes from './src/routes/admin/callAdmin.route.js'
+import ticketRoutes from './src/routes/client/ticket.route.js'
+import reportAdminRoutes from './src/routes/admin/reportAdmin.route.js'
 
 dotenv.config()
 
@@ -63,18 +65,25 @@ const SERVER = async () => {
   app.use('/api', chatRouter)
   app.use('/api', callRouter)
   app.use('/api', uploadRouter)
+  app.use('/api', ticketRoutes)
 
   //admin routes
   app.use('/api', userAdminRoutes)
   app.use('/api', adminAuthRoutes)
   app.use('/api', profileAdminRoutes)
   app.use('/api', callAdminRoutes)
+  app.use('/api', reportAdminRoutes)
 
   app.use((err, req, res, next) => {
     const statusCode = err.statusCode || 500
 
     return res.status(statusCode).json({
-      message: err.message || 'An error occurred please try again'
+      message: err.message || 'An error occurred please try again',
+      ...(err.isBanned && {
+        isBanned: true,
+        banDetails: err.banDetails || null
+      }),
+      ...(err.data && { data: err.data })
     })
   })
 

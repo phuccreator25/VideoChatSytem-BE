@@ -218,7 +218,7 @@ const findByUser = async ({ keyword, currentUserId }) => {
   return data;
 };
 
-const updateOne = async (data) => {
+const updateOne = async (data, options = {}) => {
   return await GET_DB()
     .collection(USER_MODEL.COLECTION_USER_NAME)
     .findOneAndUpdate(
@@ -230,19 +230,17 @@ const updateOne = async (data) => {
           expiredVerifyTokenAt: null
         },
       },
-      {
-        returnDocument: "after",
-      }
+      { ...options, returnDocument: "after" }
     );
 };
 
-const updateById = async ({ _id, data, options = {} }) => {
+const updateById = async (_id, data, options = {}) => {
   const result = await GET_DB()
     .collection(USER_MODEL.COLECTION_USER_NAME)
     .findOneAndUpdate(
       { _id: new ObjectId(_id) },
-      { $set: data },
-      { ...options, returnDocument: "after" },
+      data,
+      { ...options, returnDocument: "after" }
     );
 
   return result;

@@ -317,7 +317,8 @@ const buildMessagePipeline = ({
         reactions: 1, // ĐƯA THÊM REACTIONS VÀO ĐẦU RA PROJECT
         preview: 1,
         messageType: 1,
-        callInfo: 1
+        callInfo: 1,
+        moderation: 1
       },
     }
   );

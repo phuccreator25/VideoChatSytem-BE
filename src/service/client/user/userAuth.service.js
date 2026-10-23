@@ -35,16 +35,17 @@ export const onRegister = async (payload) => {
         throw new Error("This email is already registered");
       }
 
-      await USER_REPOSITORY.updateById({
-        _id: existingUser._id,
-        data: {
-          fullname: payload.fullname,
-          password: hashedPassword,
-          verifyToken,
-          expiredVerifyTokenAt,
-          updatedAt: new Date(),
+      await USER_REPOSITORY.updateById(
+        existingUser._id ,
+        { $set: {
+            fullname: payload.fullname,
+            password: hashedPassword,
+            verifyToken,
+            expiredVerifyTokenAt,
+            updatedAt: new Date(),
+          }
         },
-      });
+      );
 
       await sendMail({
         to: existingUser.email,
@@ -110,7 +111,33 @@ export const onLogin = async (payload) => {
 
     if (!user.isActive) throw new Error("Account is not activated yet");
 
-    if (user.isBanned) throw new Error("This account has been banned");
+    if (user.isBanned) {
+      if (user.unBannedAt && new Date(user.unBannedAt) <= new Date()) {
+        await USER_REPOSITORY.updateById(
+          user._id ,
+          {
+            $set : {
+              isBanned: false,
+              banReason: "",
+              unBannedAt: null,
+              unBannedBy: "system_auto_unban",
+              updatedAt: new Date(),
+            }
+          },
+        );
+        user.isBanned = false;
+      } else {
+        const banError = new Error("This account has been banned");
+        banError.statusCode = 403;
+        banError.isBanned = true;
+        banError.banDetails = {
+          banReason: user.banReason || "Violation of Community Guidelines",
+          bannedAt: user.bannedAt || null,
+          unBannedAt: user.unBannedAt || null,
+        };
+        throw banError;
+      }
+    }
 
     const isPasswordValid = await bcrypt.compare(
       payload.password,
@@ -119,9 +146,20 @@ export const onLogin = async (payload) => {
 
     if (!isPasswordValid) throw new Error("Incorrect password");
 
+    const userFormat = {
+      _id: user._id,
+      fullname: user.fullname,
+      username: user.username,
+      email: user.email,
+      avatar: user.avatar,
+      isActive: user.isActive,
+      warningAccount: user.warningAccount,
+      warning: user.warning,
+    }
+
     const data = {
       ...payload,
-      ...user,
+      ...userFormat,
     };
 
     return await handleDeviceSession(data);
@@ -194,13 +232,15 @@ export const onForgotPassword = async (payload) => {
       link,
     };
 
-    await USER_REPOSITORY.updateById({
-      _id: result._id,
-      data: {
-        verifyToken,
-        expiredVerifyTokenAt,
+    await USER_REPOSITORY.updateById(
+      result._id ,
+      {
+        $set: {
+          verifyToken,
+          expiredVerifyTokenAt,
+        }
       },
-    });
+    );
 
     await sendMail({
       to: payload.email,
@@ -300,7 +340,9 @@ export const onRefreshToken = async (refreshToken) => {
 
     const data = {
       ...user,
-      ...session,
+      deviceId: session.deviceId,
+      userAgent: session.userAgent,
+      ipAddress: session.ipAddress,
     };
 
     return await handleDeviceSession(data);

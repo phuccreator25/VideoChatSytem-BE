@@ -7,7 +7,18 @@ import { UPLOAD_S3 } from "../../../helper/uploadS3.js";
 
 export const onGetUserById = async (payload) => {
   try {
-    return await USER_REPOSITORY.findById(payload.id);
+    const result = await USER_REPOSITORY.findById(payload.id);
+    
+    return {
+      _id: result._id,
+      fullname: result.fullname,
+      username: result.username,
+      avatar: result.avatar,
+      email: result.email,
+      isActive: result.isActive,
+      warningAccount: result.warningAccount,
+      warning: result.warning,
+    };
   } catch (error) {
     console.log("GET DATA ", error);
     throw error;
@@ -56,10 +67,10 @@ export const onUpdateUser = async ({ _id, sessionId, payload }) => {
       updateData.avatar = avatarUrl;
     }
 
-    const updatedUser = await USER_REPOSITORY.updateById({
+    const updatedUser = await USER_REPOSITORY.updateById(
       _id,
-      data: updateData,
-    });
+      {$set: updateData},
+    );
 
     if (isPasswordChanged && sessionId) {
       const otherSessions = await DEVICE_SESSION_REPOSITORY.findMany({
@@ -123,17 +134,8 @@ export const onUpdateStatus = async (userId, data = {}) => {
     updateData.lastSeenAt = data.lastSeenAt;
   }
 
-  return await USER_REPOSITORY.updateById({
-    _id: userId,
-    data: updateData,
-  });
+  return await USER_REPOSITORY.updateById(
+    userId,
+    { $set: updateData },
+  );
 };
-
-export const onGetAllAttachedFiles = async ({ currentUserId }) => {
-  try {
-    const files = await USER_REPOSITORY.onGetAllAttachedFiles(currentUserId);
-    
-  } catch (error) {
-    throw error;
-  }
-}

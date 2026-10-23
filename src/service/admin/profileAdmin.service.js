@@ -62,8 +62,11 @@ const onUpdateProfile = async ({ _id, data, sessionId }) => {
     const session = client.startSession()
     try {
         session.startTransaction()
-        await USER_REPOSITORY.updateById({ _id, data: updatedData });
-        
+        await USER_REPOSITORY.updateById(
+            _id,
+            { $set: updatedData }
+        );
+
         if (updatedData.password) {
             const otherSessions = await DEVICE_SESSION_REPOSITORY.findMany({
                 userId: _id.toString(),

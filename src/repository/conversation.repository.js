@@ -118,6 +118,10 @@ const updateOne = async (filter = {}, updateData = {}, session = null) => {
 const previewByMessage = (message) => {
   if (!message) return "No messages yet";
 
+  if (message.moderation?.isModerated) {
+    return "This message has been deleted by a moderator.";
+  }
+
   if (message.isRevoked) {
     return "This message has been revoked";
   }
@@ -365,6 +369,7 @@ const findListByUserId = async (currentUserId) => {
                 createdAt: 1,
                 attachments: 1,
                 isRevoked: 1,
+                moderation: 1,
               },
             },
             { $limit: 1 },
@@ -453,6 +458,7 @@ const findListByUserId = async (currentUserId) => {
           showOnlineStatus: "$otherUser.showOnlineStatus",
           lastMessage: 1,
           lastMessageAt: 1,
+          moderations: 1,
           createdAt: 1,
           unreadCount: 1,
           userId: "$otherUser._id",
@@ -490,8 +496,9 @@ const findListByUserId = async (currentUserId) => {
       avatar: item.avatar || "",
       isOnline: Boolean(isOtherUserOnline),
       preview: previewByMessage(item.lastMessage),
+      moderation: item.lastMessage?.moderation || null,
       time: formatConversationTime(timeSource),
-      type: item.lastMessage?.type === "image" ? "image" : "text",
+      type: item.lastMessage?.moderation?.isModerated ? "text" : (item.lastMessage?.type === "image" ? "image" : "text"),
       unread: item.unreadCount || 0,
       active: false,
       userId: item.userId,

@@ -9,7 +9,7 @@ import { isUserOnline } from "../../sockets/socketStore.js";
 import { CHUNK_SIZE } from "../../data/upload.data.js";
 
 const onPresignURL = async ({ files, type = "message", userId = null }) => {
-  if (type !== "message" && type !== "avatar") {
+  if (type !== "message" && type !== "avatar" && type !== "reports") {
     throw new Error("Invalid upload type");
   }
 
@@ -18,6 +18,11 @@ const onPresignURL = async ({ files, type = "message", userId = null }) => {
     : (files && typeof files === "object" ? [files] : []);
 
   validateFileCount(fileList, type);
+
+  let uploadSessionId = null;
+  if (type === 'reports') {
+    uploadSessionId = new ObjectId().toString();
+  }
 
   const presignUrls = await Promise.all(
     fileList.map(async (file) => {
@@ -28,11 +33,12 @@ const onPresignURL = async ({ files, type = "message", userId = null }) => {
 
       if (size < CHUNK_SIZE) {
         const result = await UPLOAD_S3.onGeneratePresignURL({
-          folder: type === "message" ? "messageFiles" : "avatars",
+          folder: type === "message" ? "messageFiles" : type === 'avatar' ? "avatars" : "tempReports",
           userId,
           tempAttachmentId: tempId,
           filename: file.fileName,
           mimeType: file.mimeType,
+          uploadSessionId: uploadSessionId
         });
 
         return {
@@ -42,6 +48,7 @@ const onPresignURL = async ({ files, type = "message", userId = null }) => {
           originalFileName: file.fileName,
           mimeType: file.mimeType,
           presignedUrl: result.url,
+          uploadSessionId: uploadSessionId,
         };
       }
 

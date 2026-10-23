@@ -90,6 +90,20 @@ const COLLECTION_MESSAGE_SCHEMA = Joi.object({
   isRevoked: Joi.boolean().default(false),
   revokedAt: Joi.date().allow(null).default(null),
 
+  moderation: Joi.object({
+    isModerated: Joi.boolean().default(false),
+    moderatedAt: Joi.date().allow(null).default(null),
+    reason: Joi.string().trim().allow(null, "").default(null),
+    moderatedBy: Joi.string().trim().allow(null, "").default(null),
+    ticketId: Joi.string().trim().allow(null, "").default(null),
+  }).default({
+    isModerated: false,
+    moderatedAt: null,
+    reason: null,
+    moderatedBy: null,
+    ticketId: null,
+  }),
+
   sendStatus: Joi.string().valid("sent", "failed").default("sent"),
 
   createdAt: Joi.date().default(() => new Date()),

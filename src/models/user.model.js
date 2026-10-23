@@ -41,6 +41,13 @@ const COLECTION_USER_SCHEMA = Joi.object({
   verifyToken: Joi.string().default(null),
   expiredVerifyTokenAt: Joi.date().default(null),
 
+  warningCount: Joi.number().default(0),
+  warning: Joi.array().default([]).items({
+    reason: Joi.string().trim().allow('').default(''),
+    warningAt: Joi.date().default(() => new Date()),
+    warningBy: Joi.string().allow(null).default(null), // created admin
+  }),
+
   createdBy: Joi.string().allow(null).default(null), // created admin
   updatedBy: Joi.string().allow(null).default(null),
 

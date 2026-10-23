@@ -23,7 +23,7 @@ const onLogin = async (payload) => {
 
         const data = {
             ...admin,
-            payload
+            ...payload
         }
 
         return handleDeviceSession(data)
@@ -57,7 +57,9 @@ const onRefreshToken = async (refreshToken) => {
 
         const data = {
             ...admin,
-            payload: session
+            deviceId: session.deviceId,
+            userAgent: session.userAgent,
+            ipAddress: session.ipAddress,
         }
 
         return await handleDeviceSession(data)

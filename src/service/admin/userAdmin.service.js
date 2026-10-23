@@ -104,7 +104,7 @@ const onUpdateAdmin = async ({ _id, payload, adminId }) => {
     try {
         session.startTransaction();
 
-        await USER_REPOSITORY.updateById({ _id, data: updateData, options: { session } });
+        await USER_REPOSITORY.updateById( _id, { $set: updateData }, { session } );
 
         if (isPasswordChanged || (updateData.role && updateData.role !== checkUser.role)) {
             await DEVICE_SESSION_REPOSITORY.updateMany(
@@ -125,13 +125,15 @@ const onUpdateAdmin = async ({ _id, payload, adminId }) => {
     return
 }
 
-const onBanUser = async ({ _id, payload = {}, adminId }) => {
-
+const onBanUser = async ({ _id, payload = {}, adminId, session = null }) => {
     if (!_id || !adminId) throw new Error('User information is required');
+
+    const isExternalSession = Boolean(session);
+    const activeSession = isExternalSession ? session : client.startSession();
 
     const [targetUser, actingAdmin] = await Promise.all([
         USER_REPOSITORY.findById(_id),
-        USER_REPOSITORY.findById(adminId),
+        USER_REPOSITORY.findById(adminId)
     ]);
 
     if (!targetUser) throw new Error('User not found');
@@ -146,40 +148,43 @@ const onBanUser = async ({ _id, payload = {}, adminId }) => {
         isBanned: true,
         bannedBy: adminId,
         bannedAt: new Date(),
+        unBannedAt: payload.unBannedAt ? new Date(payload.unBannedAt) : null,
         updatedAt: new Date(),
         updatedBy: adminId,
     };
 
-    const session = await client.startSession();
     try {
-        session.startTransaction();
+        if (!isExternalSession) {
+            activeSession.startTransaction();
+        }
 
-        await USER_REPOSITORY.updateById({
-            _id,
-            data: allowedFields,
-            options: { session },
-        });
+        await USER_REPOSITORY.updateById(_id, { $set: allowedFields }, { session: activeSession });
 
         await DEVICE_SESSION_REPOSITORY.updateMany(
             { userId: _id, revokedAt: null },
-            { revokedAt: new Date() },
-            { session }
+            { $set: { revokedAt: new Date() } },
+            { session: activeSession }
         );
+        if (!isExternalSession) {
+            await activeSession.commitTransaction();
 
-        await session.commitTransaction();
+            emitBanUserEvent(_id.toString(), {
+                message: allowedFields.banReason
+                    ? `Your account has been banned: ${allowedFields.banReason}`
+                    : "Your account has been banned by an administrator."
+            });
+        }
 
-        emitBanUserEvent(_id.toString(), {
-            message: allowedFields.banReason
-                ? `Your account has been banned: ${allowedFields.banReason}`
-                : "Your account has been banned by an administrator."
-        });
-
-        return;
+        return true;
     } catch (error) {
-        await session.abortTransaction();
+        if (!isExternalSession) {
+            await activeSession.abortTransaction();
+        }
         throw error;
     } finally {
-        session.endSession();
+        if (!isExternalSession) {
+            await activeSession.endSession();
+        }
     }
 };
 
@@ -201,10 +206,7 @@ const onUnbanUser = async ({ _id, adminId }) => {
             updatedBy: adminId,
         };
 
-        await USER_REPOSITORY.updateById({
-            _id,
-            data: allowedFields,
-        });
+        await USER_REPOSITORY.updateById(_id, { $set: allowedFields });
 
         return
     } catch (error) {
@@ -232,14 +234,14 @@ const onSendMailVerify = async ({ _id }) => {
 
         const activationLink = `${env.HOST_NAME}/active-account?token=${verifyToken}`;
 
-        await USER_REPOSITORY.updateById({
-            _id: checkUser._id,
-            data: {
+        await USER_REPOSITORY.updateById(
+            checkUser._id ,
+            { $set: {
                 verifyToken,
                 expiredVerifyTokenAt,
                 updatedAt: new Date(),
-            },
-        });
+            }},
+        );
 
         await sendMailQueue.add("send-mail-queue", {
             to: checkUser.email,
