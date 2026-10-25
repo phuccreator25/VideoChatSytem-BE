@@ -44,7 +44,7 @@ const SERVER = async () => {
       'http://127.0.0.1:5173',
       'http://localhost:30081',
       'http://127.0.0.1:30081',
-      'https://videochatsystem-fe.vercel.app',
+      'https://visionnary.site',
       'http://chat-app.test'
     ],
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
