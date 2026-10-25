@@ -325,7 +325,10 @@ export const processSendMessage = async ({
 
     let existingMessage = null;
 
-    if (message?.messageId) {
+    const isValidObjectId = (id) =>
+      id && typeof id === "string" && ObjectId.isValid(id) && new ObjectId(id).toString() === id;
+
+    if (isValidObjectId(message?.messageId)) {
       existingMessage = await MESSAGE_REPOSITORY.findOne(
         { _id: new ObjectId(message.messageId) },
         session
