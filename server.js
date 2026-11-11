@@ -55,7 +55,12 @@ const SERVER = async () => {
   //   app.use(express.json())
   app.use(cookieParser());
 
-  // app.use(arjectProtection);
+  app.use(arjectProtection);
+  
+  //check health of server
+  app.get('/health', (req, res) => {
+    res.status(200).send('OK');
+  });
 
   app.use('/api', userRouter)
   app.use('/api', invitationRouter)
