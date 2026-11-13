@@ -1,4 +1,4 @@
-  import { ObjectId } from "mongodb";
+import { ObjectId } from "mongodb";
 import { CONTACTS_REPOSITORY } from "../../repository/contacts.repository.js";
 import { CONVERSATION_REPOSITORY } from "../../repository/conversation.repository.js";
 import { CONVERSATION_PARTICIPANT_REPOSITORY } from "../../repository/conversationParticipant.repository.js";
@@ -13,6 +13,7 @@ import {
 } from "../../sockets/emitters/messages.emitter.js";
 import { BLOCK_REPOSITORY } from "../../repository/block.repository.js";
 import { CONVERSATION_MODEL } from "../../models/conversation.model.js";
+import { log } from "node:console";
 
 const onGetOrCreateConversation = async ({ currentUserId, userId }) => {
   if (!currentUserId || !userId)
@@ -74,35 +75,42 @@ const onGetOrCreateConversation = async ({ currentUserId, userId }) => {
   }
 };
 
-const onGetConversationById = async ({ conversationId, currentUserId }) => {
+const onGetConversationById = async ({ conversationId, currentUserId }) => { // CHECK LÝ DO TRUY VẤN QUÁ LÂU
   if (!conversationId) throw new Error("Conversation ID is required");
-  console.log('current: ', currentUserId);
-  
+  console.log('start query: ', Date.now());
 
-  const conversation = await CONVERSATION_REPOSITORY.findOne({
-    _id: new ObjectId(conversationId),
-    status: "active",
-  });
+
+  const [conversation, participants] = await Promise.all([
+    CONVERSATION_REPOSITORY.findOne({ _id: new ObjectId(conversationId), status: "active" }),
+    CONVERSATION_PARTICIPANT_REPOSITORY.find({
+      conversationId: conversationId.toString(),
+      leftAt: null,
+    })
+  ]);
 
   if (!conversation) throw new Error("Conversation not found");
 
-  const otherUserId =
-    await CONVERSATION_PARTICIPANT_REPOSITORY.findOtherUserIdByConversation(
-      conversationId.toString(),
-      currentUserId.toString(),
-    );
-
-  if (!otherUserId) {
+  const currentParticipant = participants.find(p => String(p.userId) === String(currentUserId));
+  if (!currentParticipant) {
     throw new Error("You are not a participant of this conversation");
   }
 
-  const [userData, contactData, messages, Invitation, pinMessages, block, targetLanguage] = await Promise.all([
+  const otherParticipant = participants.find(p => String(p.userId) !== String(currentUserId));
+  const otherUserId = otherParticipant ? String(otherParticipant.userId) : null;
+
+  const currentUserDeletedAt = currentParticipant.deletedAt || null;
+  const targetLanguage = currentParticipant.targetLanguage || 'en';
+
+  const hasPinnedMessages = conversation.pinnedMessages && conversation.pinnedMessages.length > 0;
+
+  const [userData, contactData, messages, Invitation, pinMessages, block] = await Promise.all([
     USER_REPOSITORY.findById(otherUserId),
     CONTACTS_REPOSITORY.findContactItem(currentUserId, otherUserId),
     MESSAGE_REPOSITORY.findByConversationId(conversationId, currentUserId, {
-          limit: 30,
-          sort: { createdAt: -1 },
-        }),
+      limit: 30,
+      sort: { createdAt: -1 },
+      participantDeletedAt: currentUserDeletedAt,
+    }),
     INVITATION_REPOSITORY.findByFilter({
       status: "pending",
       $or: [
@@ -116,14 +124,17 @@ const onGetConversationById = async ({ conversationId, currentUserId }) => {
         },
       ],
     }),
-    CONVERSATION_REPOSITORY.findManyPinMessages(conversationId, currentUserId),
+    hasPinnedMessages
+      ? CONVERSATION_REPOSITORY.findManyPinMessages(conversationId, currentUserId)
+      : Promise.resolve([]),
     BLOCK_REPOSITORY.findBlockStatusBetweenUsers(currentUserId, otherUserId),
-    CONVERSATION_REPOSITORY.findTargetLanguage({conversationId, userId: currentUserId})
   ]);
 
   if (!userData) {
     throw new Error("User not found");
   }
+
+  console.log('End query: ', Date.now());
 
   return {
     conversation: {
@@ -447,7 +458,7 @@ const onDeleteConversation = async ({ conversationId, currentUserId }) => {
   });
 
   const updatedDeletedBy = new Set([...(conversation.deletedBy || []), String(currentUserId)])
-  
+
   const participantUserIds = participants.map((p) => String(p.userId));
 
   const isAllDeleted =
@@ -468,7 +479,7 @@ const onDeleteConversation = async ({ conversationId, currentUserId }) => {
   return conversation;
 };
 
-const onUpdateTargetLanguage = async ({conversationId, targetLanguage, currentUserId}) => {
+const onUpdateTargetLanguage = async ({ conversationId, targetLanguage, currentUserId }) => {
   if (!conversationId) throw new Error("Not found conversation");
   if (!targetLanguage) throw new Error("Not found target language");
 

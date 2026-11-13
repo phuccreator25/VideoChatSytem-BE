@@ -50,10 +50,16 @@ const buildMessagePipeline = ({
               $expr: {
                 $and: [
                   { $ne: ["$$replyId", null] },
-                  { $eq: [{ $toString: "$_id" }, "$$replyId"] },
+                  { $ne: ["$$replyId", ""] },
+                  {
+                    $eq: [
+                      "$_id",
+                      { $convert: { input: "$$replyId", to: "objectId", onError: null, onNull: null } }
+                    ]
+                  },
                 ],
               },
-            },
+            }
           },
           { $addFields: { id: { $toString: "$_id" } } },
           {
@@ -118,11 +124,11 @@ const buildMessagePipeline = ({
                 $match: {
                   $expr: {
                     $and: [
-                      { $eq: [{ $toString: "$ownerId" }, "$$currentUserId"] },
-                      { $eq: [{ $toString: "$contactUserId" }, { $toString: "$$reactionUserId" }] },
+                      { $eq: ["$ownerId", "$$currentUserId"] },
+                      { $eq: ["$contactUserId", "$$reactionUserId"] },
                     ],
                   },
-                },
+                }
               },
               { $limit: 1 },
             ],
@@ -342,15 +348,22 @@ const createOne = async (data, session = null) => {
 
 const findByConversationId = async (
   conversationId, currentUserId = null,
-  { limit = 30, skip = 0, sort = { createdAt: 1 }, session = null } = {},
+  { limit = 30, skip = 0, sort = { createdAt: 1 }, session = null, participantDeletedAt = undefined } = {},
 ) => {
   const options = session ? { session } : undefined;
 
-  const participant = await CONVERSATION_PARTICIPANT_REPOSITORY.findOne({ conversationId, userId: currentUserId });
+  let resolvedDeletedAt = participantDeletedAt;
+  if (resolvedDeletedAt === undefined) {
+    const participant = await CONVERSATION_PARTICIPANT_REPOSITORY.findOne({
+      conversationId,
+      userId: currentUserId
+    });
+    resolvedDeletedAt = participant?.deletedAt ?? null;
+  }
 
   const match = { conversationId };
-  if (participant?.deletedAt) {
-    match.createdAt = { $gt: participant.deletedAt };
+  if (resolvedDeletedAt) {
+    match.createdAt = { $gt: resolvedDeletedAt };
   }
   if (currentUserId) {
     match.deletedBy = {

@@ -135,7 +135,7 @@ const onEndCall = async ({ callId, currentUserId, reason = null }) => {
 
         let updatedStatus = call.status;
         let shouldCloseUI = false;
-        
+
 
         // Nếu số người hoạt động còn lại <= 1, đóng cuộc gọi hoàn toàn
         if (activeParticipants.length <= 1) {
@@ -162,8 +162,8 @@ const onEndCall = async ({ callId, currentUserId, reason = null }) => {
         const hasTranscript = Array.isArray(call.transcript) && call.transcript.length > 0;
         const isCompleted = updatedStatus === callStatuses.COMPLETED;
         const durationSec = isCompleted && call.endedAt && call.startedAt
-                ? Math.max(0, Math.floor((call.endedAt - call.startedAt) / 1000))
-                : 0;
+            ? Math.max(0, Math.floor((call.endedAt - call.startedAt) / 1000))
+            : 0;
 
         //Check xem hook bắn chưa
         const shouldTriggerRagWebhook = shouldCloseUI && isCompleted && hasTranscript && !call.isVectorIndexed;
@@ -225,17 +225,19 @@ const onEndCall = async ({ callId, currentUserId, reason = null }) => {
                 (p) => p.userId.toString() !== callerId.toString()
             );
 
-            for (const recipient of otherParticipants) {
-                await MESSAGE_DELIVERY_REPOSITORY.createOne({
-                    messageId: createdCallMessage._id.toString(),
-                    userId: recipient.userId,
-                    deliveredAt: isUserOnline(recipient.userId) ? new Date() : null,
-                    conversationId: call.conversationId,
-                    readAt: null,
-                    createdAt: new Date(),
-                    updatedAt: new Date(),
-                }, session);
-            }
+            await Promise.all(
+                otherParticipants.map((recipient) =>
+                    MESSAGE_DELIVERY_REPOSITORY.createOne({
+                        messageId: createdCallMessage._id.toString(),
+                        userId: recipient.userId,
+                        deliveredAt: isUserOnline(recipient.userId) ? new Date() : null,
+                        conversationId: call.conversationId,
+                        readAt: null,
+                        createdAt: new Date(),
+                        updatedAt: new Date(),
+                    }, session)
+                )
+            );
         }
 
         // Cập nhật trạng thái Call vào Database
@@ -391,7 +393,7 @@ const onSpeedToTextCall = async ({ callId, transcript, currentUserId }) => {
 
         if (!Array.isArray(call.transcript)) {
             updateOperation = {
-                $set: { 
+                $set: {
                     transcript: transcriptArray,
                     updatedAt: new Date()
                 }
@@ -404,9 +406,9 @@ const onSpeedToTextCall = async ({ callId, transcript, currentUserId }) => {
         }
 
         const result = await CALL_REPOSITORY.updateOne(
-            { 
+            {
                 _id: new ObjectId(callId),
-                "participants.userId": currentUserId.toString() 
+                "participants.userId": currentUserId.toString()
             },
             updateOperation
         );
@@ -509,12 +511,12 @@ const onGetPendingVectorCalls = async () => {
         const fifteenMinsAgo = new Date(now.getTime() - 15 * 60 * 1000);
 
         await CALL_REPOSITORY.updateMany(
-            { 
-                isVectorStatus: vectorStatus.PENDING, 
-                retryCount: { $gte: 3 } 
+            {
+                isVectorStatus: vectorStatus.PENDING,
+                retryCount: { $gte: 3 }
             },
-            { 
-                $set: { isVectorStatus: vectorStatus.FAILED } 
+            {
+                $set: { isVectorStatus: vectorStatus.FAILED }
             }
         );
 
@@ -539,7 +541,7 @@ const onGetPendingVectorCalls = async () => {
         return calls
     } catch (error) {
         console.error("Lỗi trong onGetPendingVectorCalls:", error?.response?.data || error.message);
-        
+
         return res.status(500).json({
             success: false,
             message: "Internal Server Error",

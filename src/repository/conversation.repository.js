@@ -36,14 +36,6 @@ const findOne = async (filter = {}, session = null) => {
   return result;
 };
 
-const findTargetLanguage = async (filter = {}) => {
-  const result = await GET_DB()
-    .collection(PARTICIPANT_COLLECTION_NAME)
-    .findOne(filter);
-
-  return result.targetLanguage;
-};
-
 const findConversationBetweenUser = async (currentUserId, userId) => {
   const userIds = [String(currentUserId), String(userId)];
 
@@ -216,267 +208,298 @@ const formatConversationTime = (timeInput) => {
 const findListByUserId = async (currentUserId) => {
   if (!currentUserId) return [];
 
-  const conversations = await GET_DB()
-    .collection(COLLECTION_NAME)
-    .aggregate([
-      {
-        $match: {
-          type: CONVERSATION_MODEL.conversationTypes.DIRECT,
-          status: CONVERSATION_MODEL.conversationStatus.ACTIVE,
-          deletedBy: { $nin: [String(currentUserId)] },
-        },
-      },
-      {
-        $addFields: {
-          conversationIdStr: { $toString: "$_id" },
-        },
-      },
-      {
-        $lookup: {
-          from: PARTICIPANT_COLLECTION_NAME,
-          let: { conversationIdStr: "$conversationIdStr" },
-          pipeline: [
-            {
-              $match: {
-                leftAt: null,
-                $expr: { $eq: ["$conversationId", "$$conversationIdStr"] },
-              },
-            },
-            {
-              $project: {
-                _id: 0,
-                userId: 1,
-              },
-            },
-          ],
-          as: "participants",
-        },
-      },
-      {
-        $match: {
-          "participants.userId": currentUserId,
-        },
-      },
-      {
-        $addFields: {
-          otherParticipant: {
-            $arrayElemAt: [
-              {
-                $filter: {
-                  input: "$participants",
-                  as: "participant",
-                  cond: { $ne: ["$$participant.userId", currentUserId] },
-                },
-              },
-              0,
-            ],
-          },
-        },
-      },
-      {
-        $match: {
-          "otherParticipant.userId": { $exists: true, $ne: null },
-        },
-      },
-      {
-        $lookup: {
-          from: USER_MODEL.COLECTION_USER_NAME,
-          let: { otherUserId: "$otherParticipant.userId" },
-          pipeline: [
-            {
-              $match: {
-                $expr: {
-                  $eq: [
-                    "$_id",
-                    {
-                      $convert: {
-                        input: "$$otherUserId",
-                        to: "objectId",
-                        onError: null,
-                        onNull: null,
-                      },
-                    },
-                  ],
-                },
-              },
-            },
-            {
-              $project: {
-                _id: 1,
-                fullname: 1,
-                avatar: 1,
-                status: 1,
-                showOnlineStatus: 1,
-              },
-            },
-          ],
-          as: "otherUser",
-        },
-      },
-      {
-        $unwind: {
-          path: "$otherUser",
-          preserveNullAndEmptyArrays: false,
-        },
-      },
-      {
-        $lookup: {
-          from: CONTACT_MODEL.COLLECTION_CONTACT_NAME,
-          let: { otherUserId: "$otherParticipant.userId" },
-          pipeline: [
-            {
-              $match: {
-                ownerId: currentUserId,
-                $expr: { $eq: ["$contactUserId", "$$otherUserId"] },
-              },
-            },
-            {
-              $project: {
-                _id: 0,
-                nickname: 1,
-              },
-            },
-            { $limit: 1 },
-          ],
-          as: "contactInfo",
-        },
-      },
-      {
-        $lookup: {
-          from: MESSAGE_MODEL.COLLECTION_MESSAGE_NAME,
-          let: { conversationIdStr: "$conversationIdStr" }, // Xử lý last message  nếu  bị delete for me
-          pipeline: [
-            {
-              $match: {
-                deletedBy: {
-                  $nin: [currentUserId], // Nếu message có id của currentUserId trong deletedBy thì sẽ không lấy message đó
-                },
-                $expr: { $eq: ["$conversationId", "$$conversationIdStr"] },
-              },
-            },
-            {
-              $sort: {
-                createdAt: -1,
-              },
-            },
-            {
-              $project: {
-                _id: 1,
-                type: 1,
-                messageType: 1,
-                callInfo: 1,
-                content: 1,
-                createdAt: 1,
-                attachments: 1,
-                isRevoked: 1,
-                moderation: 1,
-              },
-            },
-            { $limit: 1 },
-          ],
-          as: "lastMessage",
-        },
-      },
-      {
-        $lookup: {
-          from: MESSAGE_DELIVERY_MODEL.COLLECTION_MESSAGE_DELIVERY_NAME,
-          let: { conversationIdStr: "$conversationIdStr" },
-          pipeline: [
-            {
-              $match: {
-                userId: currentUserId,
-                readAt: null,
-                $expr: { $eq: ["$conversationId", "$$conversationIdStr"] },
-              },
-            },
-            {
-              $count: "count",
-            },
-          ],
-          as: "unreadInfo",
-        },
-      },
-      {
-        $lookup: {
-          from: BLOCK_MODEL.COLLECTION_BLOCK_NAME,
-          let: {
-            currentUserId: currentUserId,
-            otherUserId: "$otherParticipant.userId",
-          },
-          pipeline: [
-            {
-              $match: {
-                $expr: {
-                  $and: [
-                    { $eq: ["$status", BLOCK_MODEL.blockStatus.BLOCKED] },
-                    {
-                      $or: [
-                        {
-                          $and: [
-                            { $eq: ["$blockerId", "$$currentUserId"] },
-                            { $eq: ["$blockedId", "$$otherUserId"] },
-                          ],
-                        },
-                        {
-                          $and: [
-                            { $eq: ["$blockerId", "$$otherUserId"] },
-                            { $eq: ["$blockedId", "$$currentUserId"] },
-                          ],
-                        },
-                      ],
-                    },
-                  ],
-                },
-              },
-            },
-            { $limit: 1 },
-          ],
-          as: "blockInfo",
-        },
-      },
-      {
-        $addFields: {
-          nickname: { $arrayElemAt: ["$contactInfo.nickname", 0] },
-          lastMessage: { $arrayElemAt: ["$lastMessage", 0] },
-          unreadCount: {
-            $ifNull: [{ $arrayElemAt: ["$unreadInfo.count", 0] }, 0],
-          },
-          isBlocked: {
-            $gt: [{ $size: "$blockInfo" }, 0],
-          },
-        },
-      },
-      {
-        $project: {
-          _id: 0,
-          conversationId: "$conversationIdStr",
-          displayName: {
-            $ifNull: ["$nickname", "$otherUser.fullname"],
-          },
-          avatar: "$otherUser.avatar",
-          userStatus: "$otherUser.status",
-          showOnlineStatus: "$otherUser.showOnlineStatus",
-          lastMessage: 1,
-          lastMessageAt: 1,
-          moderations: 1,
-          createdAt: 1,
-          unreadCount: 1,
-          userId: "$otherUser._id",
-          isBlocked: 1,
-        },
-      },
-      {
-        $sort: {
-          lastMessageAt: -1,
-          createdAt: -1,
-        },
-      },
-    ])
+  const userParticipations = await GET_DB()
+    .collection(PARTICIPANT_COLLECTION_NAME)
+    .find(
+      { userId: String(currentUserId), leftAt: null },
+      { projection: { conversationId: 1, _id: 0 } }
+    )
     .toArray();
 
-  const currentUser = await GET_DB()
-    .collection(USER_MODEL.COLECTION_USER_NAME)
-    .findOne({ _id: new ObjectId(currentUserId) }, { projection: { showOnlineStatus: 1 } });
+  if (!userParticipations.length) return [];
+
+  const conversationObjectIds = userParticipations
+    .map((p) => {
+      try {
+        return new ObjectId(p.conversationId);
+      } catch {
+        return null;
+      }
+    })
+    .filter(Boolean);
+
+  if (!conversationObjectIds.length) return [];
+
+  let currentUserQuery = Promise.resolve(null);
+  try {
+    currentUserQuery = GET_DB()
+      .collection(USER_MODEL.COLECTION_USER_NAME)
+      .findOne({ _id: new ObjectId(currentUserId) }, { projection: { showOnlineStatus: 1 } });
+  } catch {
+    currentUserQuery = Promise.resolve(null);
+  }
+
+  const [conversations, currentUser] = await Promise.all([
+    GET_DB()
+      .collection(COLLECTION_NAME)
+      .aggregate([
+        {
+          $match: {
+            _id: { $in: conversationObjectIds },
+            type: CONVERSATION_MODEL.conversationTypes.DIRECT,
+            status: CONVERSATION_MODEL.conversationStatus.ACTIVE,
+            deletedBy: { $nin: [String(currentUserId)] },
+          },
+        },
+        {
+          $addFields: {
+            conversationIdStr: { $toString: "$_id" },
+          },
+        },
+        {
+          $lookup: {
+            from: PARTICIPANT_COLLECTION_NAME,
+            let: { conversationIdStr: "$conversationIdStr" },
+            pipeline: [
+              {
+                $match: {
+                  leftAt: null,
+                  $expr: { $eq: ["$conversationId", "$$conversationIdStr"] },
+                },
+              },
+              {
+                $project: {
+                  _id: 0,
+                  userId: 1,
+                },
+              },
+            ],
+            as: "participants",
+          },
+        },
+        {
+          $match: {
+            "participants.userId": currentUserId,
+          },
+        },
+        {
+          $addFields: {
+            otherParticipant: {
+              $arrayElemAt: [
+                {
+                  $filter: {
+                    input: "$participants",
+                    as: "participant",
+                    cond: { $ne: ["$$participant.userId", currentUserId] },
+                  },
+                },
+                0,
+              ],
+            },
+          },
+        },
+        {
+          $match: {
+            "otherParticipant.userId": { $exists: true, $ne: null },
+          },
+        },
+        {
+          $lookup: {
+            from: USER_MODEL.COLECTION_USER_NAME,
+            let: { otherUserId: "$otherParticipant.userId" },
+            pipeline: [
+              {
+                $match: {
+                  $expr: {
+                    $eq: [
+                      "$_id",
+                      {
+                        $convert: {
+                          input: "$$otherUserId",
+                          to: "objectId",
+                          onError: null,
+                          onNull: null,
+                        },
+                      },
+                    ],
+                  },
+                },
+              },
+              {
+                $project: {
+                  _id: 1,
+                  fullname: 1,
+                  avatar: 1,
+                  status: 1,
+                  showOnlineStatus: 1,
+                },
+              },
+            ],
+            as: "otherUser",
+          },
+        },
+        {
+          $unwind: {
+            path: "$otherUser",
+            preserveNullAndEmptyArrays: false,
+          },
+        },
+        {
+          $lookup: {
+            from: CONTACT_MODEL.COLLECTION_CONTACT_NAME,
+            let: { otherUserId: "$otherParticipant.userId" },
+            pipeline: [
+              {
+                $match: {
+                  ownerId: currentUserId,
+                  $expr: { $eq: ["$contactUserId", "$$otherUserId"] },
+                },
+              },
+              {
+                $project: {
+                  _id: 0,
+                  nickname: 1,
+                },
+              },
+              { $limit: 1 },
+            ],
+            as: "contactInfo",
+          },
+        },
+        {
+          $lookup: {
+            from: MESSAGE_MODEL.COLLECTION_MESSAGE_NAME,
+            let: { conversationIdStr: "$conversationIdStr" }, // Xử lý last message  nếu  bị delete for me
+            pipeline: [
+              {
+                $match: {
+                  deletedBy: {
+                    $nin: [currentUserId], // Nếu message có id của currentUserId trong deletedBy thì sẽ không lấy message đó
+                  },
+                  $expr: { $eq: ["$conversationId", "$$conversationIdStr"] },
+                },
+              },
+              {
+                $sort: {
+                  createdAt: -1,
+                },
+              },
+              {
+                $project: {
+                  _id: 1,
+                  type: 1,
+                  messageType: 1,
+                  callInfo: 1,
+                  content: 1,
+                  createdAt: 1,
+                  attachments: 1,
+                  isRevoked: 1,
+                  moderation: 1,
+                },
+              },
+              { $limit: 1 },
+            ],
+            as: "lastMessage",
+          },
+        },
+        {
+          $lookup: {
+            from: MESSAGE_DELIVERY_MODEL.COLLECTION_MESSAGE_DELIVERY_NAME,
+            let: { conversationIdStr: "$conversationIdStr" },
+            pipeline: [
+              {
+                $match: {
+                  userId: currentUserId,
+                  readAt: null,
+                  $expr: { $eq: ["$conversationId", "$$conversationIdStr"] },
+                },
+              },
+              {
+                $count: "count",
+              },
+            ],
+            as: "unreadInfo",
+          },
+        },
+        {
+          $lookup: {
+            from: BLOCK_MODEL.COLLECTION_BLOCK_NAME,
+            let: {
+              currentUserId: currentUserId,
+              otherUserId: "$otherParticipant.userId",
+            },
+            pipeline: [
+              {
+                $match: {
+                  $expr: {
+                    $and: [
+                      { $eq: ["$status", BLOCK_MODEL.blockStatus.BLOCKED] },
+                      {
+                        $or: [
+                          {
+                            $and: [
+                              { $eq: ["$blockerId", "$$currentUserId"] },
+                              { $eq: ["$blockedId", "$$otherUserId"] },
+                            ],
+                          },
+                          {
+                            $and: [
+                              { $eq: ["$blockerId", "$$otherUserId"] },
+                              { $eq: ["$blockedId", "$$currentUserId"] },
+                            ],
+                          },
+                        ],
+                      },
+                    ],
+                  },
+                },
+              },
+              { $limit: 1 },
+            ],
+            as: "blockInfo",
+          },
+        },
+        {
+          $addFields: {
+            nickname: { $arrayElemAt: ["$contactInfo.nickname", 0] },
+            lastMessage: { $arrayElemAt: ["$lastMessage", 0] },
+            unreadCount: {
+              $ifNull: [{ $arrayElemAt: ["$unreadInfo.count", 0] }, 0],
+            },
+            isBlocked: {
+              $gt: [{ $size: "$blockInfo" }, 0],
+            },
+          },
+        },
+        {
+          $project: {
+            _id: 0,
+            conversationId: "$conversationIdStr",
+            displayName: {
+              $ifNull: ["$nickname", "$otherUser.fullname"],
+            },
+            avatar: "$otherUser.avatar",
+            userStatus: "$otherUser.status",
+            showOnlineStatus: "$otherUser.showOnlineStatus",
+            lastMessage: 1,
+            lastMessageAt: 1,
+            moderations: 1,
+            createdAt: 1,
+            unreadCount: 1,
+            userId: "$otherUser._id",
+            isBlocked: 1,
+          },
+        },
+        {
+          $sort: {
+            lastMessageAt: -1,
+            createdAt: -1,
+          },
+        },
+      ])
+      .toArray(),
+    currentUserQuery,
+  ]);
 
   const currentUserShowOnline = currentUser?.showOnlineStatus !== false;
 
@@ -655,5 +678,4 @@ export const CONVERSATION_REPOSITORY = {
   findListByUserId,
   findManyPinMessages,
   deletePinMessage,
-  findTargetLanguage
 };

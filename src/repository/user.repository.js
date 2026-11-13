@@ -218,22 +218,6 @@ const findByUser = async ({ keyword, currentUserId }) => {
   return data;
 };
 
-const updateOne = async (data, options = {}) => {
-  return await GET_DB()
-    .collection(USER_MODEL.COLECTION_USER_NAME)
-    .findOneAndUpdate(
-      { email: data.email },
-      {
-        $set: {
-          password: data.password,
-          verifyToken: null,
-          expiredVerifyTokenAt: null
-        },
-      },
-      { ...options, returnDocument: "after" }
-    );
-};
-
 const updateById = async (_id, data, options = {}) => {
   const result = await GET_DB()
     .collection(USER_MODEL.COLECTION_USER_NAME)
@@ -480,7 +464,6 @@ export const USER_REPOSITORY = {
   findById,
   findByEmail,
   activeAcount,
-  updateOne,
   updateById,
   findByUser,
   findByToken,

@@ -15,31 +15,22 @@ import { isUserOnline } from "../../sockets/socketStore.js";
 
 const onAddContact = async (payload, _currentIdUser) => {
   try {
-    const block = await BLOCK_REPOSITORY.findByBlock(_currentIdUser, payload.userId);
+    const [block, existingInvitation, contact] = await Promise.all([
+      BLOCK_REPOSITORY.findByBlock(_currentIdUser, payload.userId),
+      INVITATION_REPOSITORY.findByFilter({
+        $or: [
+          { senderId: _currentIdUser, receiverId: payload.userId },
+          { senderId: payload.userId, receiverId: _currentIdUser }
+        ],
+        status: { $in: [invitationStatus.PENDING, invitationStatus.ACCEPTED] },
+        deleteAt: null
+      }),
+      CONTACTS_REPOSITORY.findContactItem(_currentIdUser, payload.userId)
+    ]);
+
     if (block?.status === "blocked") {
       throw new Error("You are not allowed to perform this action. Please unblock the other person.");
     }
-    const existingInvitation = await INVITATION_REPOSITORY.findByFilter({
-      $or: [
-        {
-          senderId: _currentIdUser,
-          receiverId: payload.userId,
-        },
-        {
-          senderId: payload.userId,
-          receiverId: _currentIdUser,
-        },
-      ],
-      status: {
-        $in: [invitationStatus.PENDING, invitationStatus.ACCEPTED],
-      },
-      deleteAt: null,
-    });
-
-    const contact = await CONTACTS_REPOSITORY.findContactItem(
-      _currentIdUser,
-      payload.userId,
-    );
 
     if (existingInvitation) {
       if (existingInvitation.status === invitationStatus.PENDING) {
@@ -76,8 +67,8 @@ const onAddContact = async (payload, _currentIdUser) => {
       message: payload.invitationMessage,
       status: invitationStatus.PENDING,
     });
-    
-    return  {
+
+    return {
       invitationId: result.insertedId?.toString?.() || null,
       senderId: _currentIdUser,
       receiverId: payload.userId,
@@ -144,7 +135,7 @@ const onAccept = async (payload, curretnUserId) => {
   if (invitation.receiverId !== curretnUserId)
     throw new Error("You have no right to accept.");
 
-  if(invitation.status !== 'pending' || invitation.deleteAt !== null) 
+  if (invitation.status !== 'pending' || invitation.deleteAt !== null)
     throw new Error('This invitation is invalid.')
 
   const session = client.startSession();
@@ -160,31 +151,15 @@ const onAccept = async (payload, curretnUserId) => {
 
     if (!data) throw new Error("Please try again");
 
-    const receiverHasSender = await CONTACTS_REPOSITORY.findContactItem(
-      data.receiverId,
-      data.senderId,
-    );
+    const [receiverHasSender, senderHasReceiver] = await Promise.all([
+      CONTACTS_REPOSITORY.findContactItem(data.receiverId, data.senderId),
+      CONTACTS_REPOSITORY.findContactItem(data.senderId, data.receiverId)
+    ]);
 
-    if (!receiverHasSender) {
-      await CONTACTS_REPOSITORY.createOne({
-        ownerId: data.receiverId,
-        contactUserId: data.senderId,
-        nickname: null,
-      }, session);
-    }
-
-    const senderHasReceiver = await CONTACTS_REPOSITORY.findContactItem(
-      data.senderId,
-      data.receiverId,
-    );
-
-    if (!senderHasReceiver) {
-      await CONTACTS_REPOSITORY.createOne({
-        ownerId: data.senderId,
-        contactUserId: data.receiverId,
-        nickname: null,
-      }, session);
-    }
+    await Promise.all([
+      !receiverHasSender ? CONTACTS_REPOSITORY.createOne({ ownerId: data.receiverId, contactUserId: data.senderId, nickname: null }, session) : Promise.resolve(),
+      !senderHasReceiver ? CONTACTS_REPOSITORY.createOne({ ownerId: data.senderId, contactUserId: data.receiverId, nickname: null }, session) : Promise.resolve()
+    ]);
 
     await session.commitTransaction();
 
@@ -231,7 +206,7 @@ const onDecline = async (payload, currentUserId) => {
     if (invitation.receiverId !== currentUserId)
       throw new Error("You have no right to decline.");
 
-    if(invitation.status !== 'pending' || invitation.deleteAt !== null)
+    if (invitation.status !== 'pending' || invitation.deleteAt !== null)
       throw new Error('This invitation is invalid.')
 
     const data = await INVITATION_REPOSITORY.updateById(
@@ -268,7 +243,7 @@ const onCancelSent = async (payload, currentUserId) => {
     if (invitation.senderId !== currentUserId)
       throw new Error("You have no right to cancel.");
 
-    if(invitation.status !== 'pending' || invitation.deleteAt !== null)
+    if (invitation.status !== 'pending' || invitation.deleteAt !== null)
       throw new Error('This invitation is invalid.')
 
     const data = await INVITATION_REPOSITORY.updateById(

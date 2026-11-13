@@ -4,6 +4,7 @@ import env from "../config/env.js";
 import { DEVICE_SESSION_REPOSITORY } from "../repository/deviceSession.repository.js";
 import { EXP_REFRESH_TOKEN, EXP_TOKEN } from "../config/auth.js";
 import { role } from "../data/user.data.js";
+import { REDIS } from "../cache/redis.js";
 
 const addDay = (days) => {
   const date = new Date();
@@ -36,6 +37,13 @@ export const handleDeviceSession = async (data) => {
 
   await DEVICE_SESSION_REPOSITORY.createOne(dataDeviceSession);
 
+  const ttlSeconds = EXP_TOKEN * 60;  
+  await REDIS.redisHSet({
+    key: `user_sessions:${data._id.toString()}`,
+    field: sessionId,
+    value: JSON.stringify({ status: 'active' }),
+    ttl: ttlSeconds
+  });
   return {
     token,
     refreshToken,

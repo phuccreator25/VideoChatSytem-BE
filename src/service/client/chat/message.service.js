@@ -13,27 +13,27 @@ import { UPLOAD_SERVICE } from "../upload.service.js";
 import { validateFileCount } from "../../../validations/upload.validation.js";
 import { onTranslate } from "../../../helper/translate.js";
 
-const onSendMessageJob = async({ message, files, conversationId, currentUserId, isResend = false }) => {
+const onSendMessageJob = async ({ message, files, conversationId, currentUserId, isResend = false }) => {
   try {
     const otherUserId = await CONVERSATION_PARTICIPANT_REPOSITORY.findOtherUserIdByConversation(conversationId, currentUserId);
-    
+
     const blockStatus = await BLOCK_REPOSITORY.findBlockStatusBetweenUsers(currentUserId, otherUserId);
-    
+
     if (blockStatus.isBlockedByMe || blockStatus.isBlockedMe) {
       throw new Error("Cannot send message. Block status active between users.");
     }
-    
+
     const jobPayload = {
       message: isResend ? { ...message, isResend: true } : message,
       files,
       conversationId,
       currentUserId,
     };
-    
+
     const job = await sendMessageQueue.add("send-message", jobPayload);
-   
+
     return await job.waitUntilFinished(sendMessageQueueEvents);
-  
+
   } catch (error) {
     console.error(`Error adding ${isResend ? "resend" : "send"} message job to queue:`, error);
     throw error;
@@ -49,28 +49,13 @@ const validateDataMessage = async ({ conversationId, currentUserId, session }) =
     throw new Error("Your account does not exist");
   }
 
-  const conversation = await CONVERSATION_REPOSITORY.findOne(
-    { _id: new ObjectId(conversationId) },
-    session
-  );
+  const [conversation, participants] = await Promise.all([
+    CONVERSATION_REPOSITORY.findOne({ _id: new ObjectId(conversationId) }, session),
+    CONVERSATION_PARTICIPANT_REPOSITORY.find({ conversationId, leftAt: null }, session)
+  ]);
 
-  if (!conversation) {
-    throw new Error("Not found conversation.");
-  }
-
-  const currentParticipant = await CONVERSATION_PARTICIPANT_REPOSITORY.findOne(
-    { conversationId, userId: currentUserId, leftAt: null },
-    session
-  );
-
-  if (!currentParticipant) {
-    throw new Error("You are not a participant of this conversation.");
-  }
-
-  const receiverParticipant = await CONVERSATION_PARTICIPANT_REPOSITORY.findOne(
-    { conversationId, userId: { $ne: currentUserId }, leftAt: null },
-    session
-  );
+  const currentParticipant = participants.find(p => p.userId === currentUserId);
+  const receiverParticipant = participants.find(p => p.userId !== currentUserId);
 
   if (!receiverParticipant) {
     throw new Error("Receiver not found.");
@@ -216,32 +201,28 @@ const processNewMessage = async ({
   const messageCreated = await MESSAGE_REPOSITORY.createOne(messageCreate, session);
   const messageId = messageCreated._id.toString();
 
-  if (message.type !== "file") {
-    const messageDelivery = {
-      messageId,
-      userId: receiverParticipant.userId,
-      deliveredAt: hasFiles ? null : isOnlineReceiver ? now : null,
-      conversationId,
-      readAt: null,
-      createdAt: now,
-      updatedAt: now,
-    };
-    await MESSAGE_DELIVERY_REPOSITORY.createOne(messageDelivery, session);
+  const updateConversationData = {
+    lastMessageId: messageId,
+    lastMessageAt: now,
+    updatedAt: now,
+    status: CONVERSATION_MODEL.conversationStatus.ACTIVE,
+    deletedBy: [],
   }
 
-  await CONVERSATION_REPOSITORY.updateOne(
-    { _id: new ObjectId(conversationId) },
-    {
-      $set: {
-        lastMessageId: messageId,
-        lastMessageAt: now,
-        updatedAt: now,
-        status: CONVERSATION_MODEL.conversationStatus.ACTIVE,
-        deletedBy: [],
-      },
-    },
-    session
-  );
+  const messageDelivery = {
+    messageId,
+    userId: receiverParticipant.userId,
+    deliveredAt: hasFiles ? null : isOnlineReceiver ? now : null,
+    conversationId,
+    readAt: null,
+    createdAt: now,
+    updatedAt: now,
+  };
+
+  await Promise.all([
+    message.type !== "file" ? MESSAGE_DELIVERY_REPOSITORY.createOne(messageDelivery, session) : Promise.resolve(),
+    CONVERSATION_REPOSITORY.updateOne({ _id: new ObjectId(conversationId) }, { $set: updateConversationData }, session)
+  ]);
 
   const createdMessage = await MESSAGE_REPOSITORY.findMessageAfterSend(
     messageCreated._id,
@@ -404,12 +385,12 @@ export const markConversationAsRead = async ({ conversationId, currentUserId }) 
   }
 };
 
-export const onTranslationMessage = async({ messageId, currentUserId }) => {
+export const onTranslationMessage = async ({ messageId, currentUserId }) => {
   try {
     if (!messageId) throw new Error("Message not found");
     if (!currentUserId) throw new Error("User not found");
 
-    const message = await MESSAGE_REPOSITORY.findOne({ _id: new ObjectId(messageId), isRevoked: false, type: 'text'});
+    const message = await MESSAGE_REPOSITORY.findOne({ _id: new ObjectId(messageId), isRevoked: false, type: 'text' });
     if (!message) throw new Error("Message not found");
     if (!message.content || !message.content.trim()) {
       throw new Error("Message content is empty");
@@ -446,7 +427,7 @@ export const onTranslationMessage = async({ messageId, currentUserId }) => {
         messageId,
       };
     }
-  
+
     await MESSAGE_REPOSITORY.updateOne(
       { _id: new ObjectId(messageId) },
       {

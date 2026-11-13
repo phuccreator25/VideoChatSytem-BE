@@ -188,11 +188,10 @@ export const onForwardMessage = async ({ selectedIds, messageId, senderId }) => 
           throw new Error(`Cannot find recipient for target: ${selectedId}`);
         }
 
-        const block = await BLOCK_REPOSITORY.findByBlock(senderId, targetUserId);
-        if (block?.status === "blocked") throw new Error("You blocked this user");
+        const block = await BLOCK_REPOSITORY.findBlockStatusBetweenUsers(senderId, targetUserId);
 
-        const blocked = await BLOCK_REPOSITORY.findByBlock(targetUserId, senderId);
-        if (blocked?.status === "blocked") throw new Error("You are blocked by this user");
+        if (block?.isBlockedByMe) throw new Error("You blocked this user");
+        if (block?.isBlockedMe) throw new Error("You are blocked by this user");
 
         return shareMessageQueue.add(
           "forward-message",

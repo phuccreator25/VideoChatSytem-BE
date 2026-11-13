@@ -79,10 +79,10 @@ const onUpdateAdmin = async(req, res, next) => {
 const onBanUser = async(req, res, next) => {
     try {
         const { _id } = req.params
-        const { banReason } = req.body
+        const { banReason, unBannedAt } = req.body
         const adminId = req.admin.id
         
-        await USER_ADMIN_SERVICE.onBanUser({ _id, payload : { banReason }, adminId })
+        await USER_ADMIN_SERVICE.onBanUser({ _id, payload : { banReason, unBannedAt }, adminId })
 
         return res.status(200).json({
             message: 'User banned successfully'

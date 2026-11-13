@@ -15,7 +15,7 @@ const findOtherUserIdByConversation = async (conversationId, currentUserId) => {
         },
       },
       {
-        $facet: { // Cho phép chạy sog sog nhiều pinepile cùng luc
+        $facet: { // Cho phép chạy song song nhiều pipeline cùng lúc
           currentUser: [
             {
               $match: {
@@ -26,6 +26,7 @@ const findOtherUserIdByConversation = async (conversationId, currentUserId) => {
             {
               $project: {
                 _id: 1,
+                deletedAt: 1,
               },
             },
           ],

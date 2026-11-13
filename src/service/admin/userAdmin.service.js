@@ -1,6 +1,7 @@
+import { REDIS } from "../../cache/redis.js";
+import { EXP_TOKEN } from "../../config/auth.js";
 import { client } from "../../config/database.js";
 import env from "../../config/env.js";
-import { sendMail } from "../../config/sendMail.js";
 import { role } from "../../data/user.data.js";
 import { sendMailQueue } from "../../queues/uploadFileQueue.js";
 import { DEVICE_SESSION_REPOSITORY } from "../../repository/deviceSession.repository.js";
@@ -106,12 +107,16 @@ const onUpdateAdmin = async ({ _id, payload, adminId }) => {
 
         await USER_REPOSITORY.updateById( _id, { $set: updateData }, { session } );
 
-        if (isPasswordChanged || (updateData.role && updateData.role !== checkUser.role)) {
-            await DEVICE_SESSION_REPOSITORY.updateMany(
-                { userId: _id, revokedAt: null },
-                { revokedAt: new Date() },
-                { session }
-            );
+        const isRoleChanged = Boolean(updateData.role && updateData.role !== checkUser.role);
+
+        if (isPasswordChanged || isRoleChanged) {
+            await REDIS.redisDel(`user_sessions:${_id.toString()}`);
+
+            emitBanUserEvent(_id.toString(), {
+                message: isPasswordChanged
+                    ? "Your password has been updated by an administrator. Please log in again."
+                    : "Your account permissions have been updated. Please log in again."
+            });
         }
 
         await session.commitTransaction();
@@ -162,11 +167,21 @@ const onBanUser = async ({ _id, payload = {}, adminId, session = null }) => {
 
         await DEVICE_SESSION_REPOSITORY.updateMany(
             { userId: _id, revokedAt: null },
-            { $set: { revokedAt: new Date() } },
+            { revokedAt: new Date() },
             { session: activeSession }
         );
+
         if (!isExternalSession) {
             await activeSession.commitTransaction();
+
+            await Promise.all([
+                REDIS.redisDel(`user_sessions:${_id.toString()}`),
+                REDIS.redisSet({
+                    key: `user_block:${_id.toString()}`,
+                    value: 'banned',
+                    ttl: EXP_TOKEN * 60
+                })
+            ]);
 
             emitBanUserEvent(_id.toString(), {
                 message: allowedFields.banReason
@@ -207,6 +222,8 @@ const onUnbanUser = async ({ _id, adminId }) => {
         };
 
         await USER_REPOSITORY.updateById(_id, { $set: allowedFields });
+
+        await REDIS.redisDel(`user_block:${_id.toString()}`);
 
         return
     } catch (error) {

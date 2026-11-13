@@ -1,3 +1,4 @@
+import { REDIS } from "../../cache/redis.js"
 import { role } from "../../data/user.data.js"
 import { handleDeviceSession } from "../../helper/deviceSession.js"
 import { DEVICE_SESSION_REPOSITORY } from "../../repository/deviceSession.repository.js"
@@ -55,6 +56,12 @@ const onRefreshToken = async (refreshToken) => {
 
         if(admin.role === role.CLIENT) throw new Error("Account not found.Please try again")
 
+        await DEVICE_SESSION_REPOSITORY.updateOne(
+          { _id: session._id },
+          { revokedAt: new Date(), updatedAt: new Date() }
+        );
+        await REDIS.redisHDel(`user_sessions:${session.userId.toString()}`, session.sessionId);
+
         const data = {
             ...admin,
             deviceId: session.deviceId,
@@ -94,6 +101,8 @@ export const onLogOut = async (refreshToken) => {
         updatedAt: revokedAt,
       },
     );
+
+    await REDIS.redisHDel(`user_sessions:${session.userId.toString()}`, session.sessionId);
 
     return dataLogOut;
   } catch (error) {

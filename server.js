@@ -22,11 +22,13 @@ import profileAdminRoutes from './src/routes/admin/profileAdmin.route.js'
 import callAdminRoutes from './src/routes/admin/callAdmin.route.js'
 import ticketRoutes from './src/routes/client/ticket.route.js'
 import reportAdminRoutes from './src/routes/admin/reportAdmin.route.js'
+import { createDatabaseIndexes } from './src/config/initIndexes.js'
 
 dotenv.config()
 
 const SERVER = async () => {
   await connectDB()
+  await createDatabaseIndexes()
 
   //server restart thì chuyển toàn bộ sang offline tránh online ảo
   await USER_REPOSITORY.updateMany(
@@ -52,7 +54,6 @@ const SERVER = async () => {
     credentials: true
   }));
 
-  //   app.use(express.json())
   app.use(cookieParser());
 
   app.use(arjectProtection);

@@ -24,33 +24,21 @@ export const onReactEmotion = async ({
 
     session.startTransaction();
 
-    const conversation = await CONVERSATION_REPOSITORY.findOne(
-      { _id: new ObjectId(conversationId), status: "active" },
-      session,
-    );
-    if (!conversation) throw new Error("Not found conversation");
+    const [conversation, ortherUserId, message, isEmotion] = await Promise.all([
+      CONVERSATION_REPOSITORY.findOne({ _id: new ObjectId(conversationId), status: "active" }, session),
+      CONVERSATION_PARTICIPANT_REPOSITORY.findOtherUserIdByConversation(conversationId, currentUserId),
+      MESSAGE_REPOSITORY.findOne({ _id: new ObjectId(messageId), deletedBy: { $nin: [currentUserId] }, isRevoked: false }, session),
+      MESSAGE_REACTION_REPOSITORY.findOne({ messageId, userId: currentUserId }, session)
+    ])
 
-    const ortherUserId = await CONVERSATION_PARTICIPANT_REPOSITORY.findOtherUserIdByConversation(
-      conversationId,
-      currentUserId,
-    );
+    if (!conversation) throw new Error("Not found conversation");
     if (!ortherUserId) throw new Error("You are not allowed to perform this action. Please unblock the other person.");
+    if (!message) throw new Error("Not found message");
 
     const block = await BLOCK_REPOSITORY.findByBlock(currentUserId, ortherUserId);
     if (block?.status === 'blocked') {
       throw new Error("You are not allowed to perform this action. Please unblock the other person.");
     }
-
-    const message = await MESSAGE_REPOSITORY.findOne(
-      { _id: new ObjectId(messageId), deletedBy: { $nin: [currentUserId] }, isRevoked: false },
-      session,
-    );
-    if (!message) throw new Error("Not found message");
-
-    const isEmotion = await MESSAGE_REACTION_REPOSITORY.findOne(
-      { messageId, userId: currentUserId },
-      session,
-    );
 
     if (isEmotion) {
       await MESSAGE_REACTION_REPOSITORY.updateOne(
@@ -69,19 +57,14 @@ export const onReactEmotion = async ({
 
     await session.commitTransaction();
 
-    const reactionsForSender = await MESSAGE_REACTION_REPOSITORY.findByMessageWithUserName({
-      messageId,
-      currentUserId: currentUserId,
-    });
+    const [reactionsForSender, reactionsForReceiver] = await Promise.all([
+      MESSAGE_REACTION_REPOSITORY.findByMessageWithUserName({ messageId, currentUserId }),
+      MESSAGE_REACTION_REPOSITORY.findByMessageWithUserName({ messageId, currentUserId: ortherUserId })
+    ]);
 
     emitReactEmotion(currentUserId, {
       messageId,
       reactions: reactionsForSender,
-    });
-
-    const reactionsForReceiver = await MESSAGE_REACTION_REPOSITORY.findByMessageWithUserName({
-      messageId,
-      currentUserId: ortherUserId,
     });
 
     emitReactEmotion(ortherUserId, {
@@ -114,34 +97,22 @@ export const onUnReactEmotion = async ({
 
     session.startTransaction();
 
-    const conversation = await CONVERSATION_REPOSITORY.findOne(
-      { _id: new ObjectId(conversationId), status: "active" },
-      session,
-    );
-    if (!conversation) throw new Error("Not found conversation");
+    const [conversation, ortherUserId, message, isUnReactEmotion] = await Promise.all([
+      CONVERSATION_REPOSITORY.findOne({ _id: new ObjectId(conversationId), status: "active" }, session),
+      CONVERSATION_PARTICIPANT_REPOSITORY.findOtherUserIdByConversation(conversationId, currentUserId),
+      MESSAGE_REPOSITORY.findOne({ _id: new ObjectId(messageId), deletedBy: { $nin: [currentUserId] }, isRevoked: false }, session),
+      MESSAGE_REACTION_REPOSITORY.findOne({ messageId, userId: currentUserId }, session)
+    ]);
 
-    const ortherUserId = await CONVERSATION_PARTICIPANT_REPOSITORY.findOtherUserIdByConversation(
-      conversationId,
-      currentUserId,
-    );
+    if (!conversation) throw new Error("Not found conversation");
     if (!ortherUserId) throw new Error("You are not allowed to perform this action. Please unblock the other person.");
+    if (!message) throw new Error("Not found message");
+    if (!isUnReactEmotion) throw new Error("Not found react emotion");
 
     const block = await BLOCK_REPOSITORY.findByBlock(currentUserId, ortherUserId);
     if (block?.status === 'blocked') {
       throw new Error("You are not allowed to perform this action. Please unblock the other person.");
     }
-
-    const message = await MESSAGE_REPOSITORY.findOne(
-      { _id: new ObjectId(messageId), deletedBy: { $nin: [currentUserId] }, isRevoked: false },
-      session,
-    );
-    if (!message) throw new Error("Not found message");
-
-    const isUnReactEmotion = await MESSAGE_REACTION_REPOSITORY.findOne(
-      { messageId, userId: currentUserId },
-      session,
-    );
-    if (!isUnReactEmotion) throw new Error("Not found react emotion");
 
     await MESSAGE_REACTION_REPOSITORY.deleteOne(
       { messageId, userId: currentUserId },
@@ -154,7 +125,7 @@ export const onUnReactEmotion = async ({
       messageId,
       currentUserId: currentUserId,
     });
-    console.log(reactionsForSender);
+
     emitUnReactEmotion(currentUserId, {
       messageId,
       reactions: reactionsForSender,
@@ -165,7 +136,6 @@ export const onUnReactEmotion = async ({
       currentUserId: ortherUserId,
     });
 
-    console.log(reactionsForReceiver);
     emitUnReactEmotion(ortherUserId, {
       messageId,
       reactions: reactionsForReceiver,

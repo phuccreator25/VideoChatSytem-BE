@@ -10,6 +10,7 @@ import { emitBanSessionEvent, emitBanUserEvent } from "../../../sockets/emitters
 import { handleDeviceSession } from "../../../helper/deviceSession.js";
 import { client } from "../../../config/database.js";
 import { role } from "../../../data/user.data.js";
+import { REDIS } from "../../../cache/redis.js";
 
 export const onRegister = async (payload) => {
   try {
@@ -198,6 +199,8 @@ export const onLogOut = async (refreshToken) => {
 
     disconnectUserSession(session.userId, session.sessionId);
 
+    await REDIS.redisHDel(`user_sessions:${session.userId}`, session.sessionId);
+
     return dataLogOut;
   } catch (error) {
     console.error("LOGOUT: ", error);
@@ -272,13 +275,20 @@ export const onResetPassword = async (payload) => {
   const dataUpdate = {
     email: isAccount.email,
     password: hashedPassword,
+    verifyToken: null,
+    expiredVerifyTokenAt: null,
+    updateAt: new Date()
   };
 
   const session = client.startSession()
 
   try {
     session.startTransaction()
-    const data = await USER_REPOSITORY.updateOne(dataUpdate);
+    const data = await USER_REPOSITORY.updateById(
+      isAccount._id,
+      dataUpdate,
+      { session }
+    );
 
     await DEVICE_SESSION_REPOSITORY.updateMany(
       { userId: isAccount._id, revokedAt: null },
@@ -288,55 +298,48 @@ export const onResetPassword = async (payload) => {
 
     await session.commitTransaction()
 
+    await REDIS.redisDel(`user_sessions:${isAccount._id.toString()}`);
+
     emitBanUserEvent(isAccount._id.toString(), {
       message: "Your password has been changed. Please log in again!"
     });
 
     return data;
   } catch (error) {
-    throw error
+    if (session.inTransaction()) {
+      await session.abortTransaction();
+    }
+    throw error;
   } finally {
-    session.endSession()
+    await session.endSession();
   }
 };
 
 export const onRefreshToken = async (refreshToken) => {
   try {
-
-    if(!refreshToken) throw new Error("Refresh token is required")
+    if (!refreshToken) throw new Error("Refresh token is required");
 
     const session = await DEVICE_SESSION_REPOSITORY.findOne({
-      refreshToken: refreshToken,
+      refreshToken,
       revokedAt: null,
     });
 
-    if (!session) {
-      throw new Error("Login session does not exist");
-    }
-
+    if (!session) throw new Error("Login session does not exist");
     if (new Date() > new Date(session.expiredAt)) {
       throw new Error("Login session has expired, please log in again");
     }
 
     const user = await USER_REPOSITORY.findById(session.userId);
+    if (!user) throw new Error("Account does not exist");
+    if (!user.isActive) throw new Error("Account is not activated yet");
+    if (user.isBanned) throw new Error("Your account has been locked, please contact support");
+    if (user.role !== role.CLIENT) throw new Error("Account not found. Please try again");
 
-    if (!user) {
-      throw new Error("Account does not exist");
-    }
-
-    if(!user.isActive){
-      throw new Error("Account is not activated yet");
-    }
-
-    if (user.isBanned) {
-      throw new Error(
-        "Your account has been locked, please contact support",
-      );
-    }
-
-    if(user.role !== role.CLIENT){
-      throw new Error("Account not found. Please try again")
-    }
+    await DEVICE_SESSION_REPOSITORY.updateOne(
+      { _id: session._id },
+      { revokedAt: new Date(), updatedAt: new Date() }
+    );
+    await REDIS.redisHDel(`user_sessions:${session.userId.toString()}`, session.sessionId);
 
     const data = {
       ...user,
@@ -408,6 +411,8 @@ export const onBanSession = async ({ sessionId, currentUserId, currentSessionId 
       dataUpdate,
     );
 
+    await REDIS.redisHDel(`user_sessions:${session.userId}`, session.sessionId);
+
     emitBanSessionEvent(currentUserId, sessionId, {
       message: "Your login session has been revoked",
     });
@@ -447,8 +452,11 @@ export const onBanAllOtherSessions = async ({ currentUserId, currentSessionId })
       }
     );
 
-    otherSessions.forEach((s) => {
-      emitBanSessionEvent(currentUserId, s.sessionId, {
+    const otherSessionIds = otherSessions.map((s) => s.sessionId);
+    await REDIS.redisDel(`user_sessions:${currentUserId}`, ...otherSessionIds);
+
+    otherSessionIds.forEach((sid) => {
+      emitBanSessionEvent(currentUserId, sid, {
         message: "All your other login sessions have been revoked",
       });
     });
