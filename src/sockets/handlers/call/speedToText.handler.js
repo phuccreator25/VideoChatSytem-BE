@@ -24,5 +24,6 @@ export const handleSpeedToText = async (io, socket, data) => {
 
     } catch (error) {
         console.error('[Speech-to-Text] Unexpected Error:', error);
+        throw error;
     }
 };

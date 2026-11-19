@@ -59,8 +59,6 @@ export const handleCallOffer = async (io, socket, data) => {
                     const call = await CALL_REPOSITORY.findOne({ _id: new ObjectId(result.insertedId.toString()) });
 
                     if (call && call.status === callStatuses.RINGING) {
-                        console.log(`Cuộc gọi ${result.insertedId.toString()} hết 10s timeout (Callee Offline) -> Tự động hủy.`);
-
                         await CALL_SERVICE.onEndCall({
                             callId: result.insertedId.toString(),
                             currentUserId: callerId,
@@ -84,8 +82,6 @@ export const handleCallOffer = async (io, socket, data) => {
                     const call = await CALL_REPOSITORY.findOne({ _id: new ObjectId(result.insertedId.toString()) });
 
                     if (call && call.status === callStatuses.RINGING) {
-                        console.log(`Cuộc gọi ${result.insertedId.toString()} hết 20s không nhấc máy (No Answer) -> Tự động hủy.`);
-
                         await CALL_SERVICE.onEndCall({
                             callId: result.insertedId.toString(),
                             currentUserId: callerId,

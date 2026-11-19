@@ -68,8 +68,8 @@ const onProgress = async (id, currentAdminId) => {
 const onResolveTicket = async ({
     ticketId,
     currentAdminId,
-    resolutionActions, 
-    status, 
+    resolutionActions,
+    status,
     feedbackToReporter,
     adminNotes,
     unBannedAt,
@@ -116,7 +116,7 @@ const onResolveTicket = async ({
                             },
                             updatedAt: new Date(),
                         },
-                    }, session 
+                    }, session
                 );
             }
 
@@ -179,7 +179,7 @@ const onResolveTicket = async ({
         await TICKET_REPOSITORY.updateOne(
             { _id: new ObjectId(ticketId) },
             { $set: updatePayload },
-            { session } 
+            { session }
         );
 
         await session.commitTransaction();
@@ -191,28 +191,30 @@ const onResolveTicket = async ({
             resolvedAt: updatePayload.resolvedAt,
         };
     } catch (error) {
-        await session.abortTransaction();
+        if (session.inTransaction()) {
+            await session.abortTransaction();
+        }
         throw error;
     } finally {
         await session.endSession();
     }
-}; 
+};
 
-const onReleaseTicket = async({_id, currentAdminId}) => {
+const onReleaseTicket = async ({ _id, currentAdminId }) => {
     try {
 
-        if(!_id) throw new Error('Ticket ID is required');
-        if(!currentAdminId) throw new Error('Admin ID is required');
+        if (!_id) throw new Error('Ticket ID is required');
+        if (!currentAdminId) throw new Error('Admin ID is required');
 
         const isAdmin = await USER_REPOSITORY.findById(currentAdminId);
 
-        if(!isAdmin) throw new Error('Please try login again');
+        if (!isAdmin) throw new Error('Please try login again');
 
-        const isTicket = await TICKET_REPOSITORY.findOne({filters: {_id: new ObjectId(_id)}}); 
+        const isTicket = await TICKET_REPOSITORY.findOne({ filters: { _id: new ObjectId(_id) } });
 
-        if(!isTicket) throw new Error('Ticket not found');
+        if (!isTicket) throw new Error('Ticket not found');
 
-        if(isTicket.status !== reportStatuses.IN_PROGRESS) throw new Error ('Ticket not in progress');
+        if (isTicket.status !== reportStatuses.IN_PROGRESS) throw new Error('Ticket not in progress');
 
         const isCurrentAssignee = isTicket.assignedTo?.toString() === currentAdminId.toString();
         const isSuperAdmin = isAdmin.role === role.SUPPER_ADMIN;
@@ -220,22 +222,24 @@ const onReleaseTicket = async({_id, currentAdminId}) => {
         if (!isCurrentAssignee && !isSuperAdmin) throw new Error('You are not authorized to release this ticket');
 
         await TICKET_REPOSITORY.updateOne(
-            { 
+            {
                 _id: new ObjectId(_id),
                 status: reportStatuses.IN_PROGRESS
-            }, 
-            { $set: {
-                status: reportStatuses.PENDING,
-                assignedTo: null,
-                assignedAt: null,
-                updatedAt: new Date(),
-            }})
+            },
+            {
+                $set: {
+                    status: reportStatuses.PENDING,
+                    assignedTo: null,
+                    assignedAt: null,
+                    updatedAt: new Date(),
+                }
+            })
 
-        return 
+        return
     } catch (error) {
-        throw(error)
+        throw (error)
     }
-} 
+}
 
 export const REPORT_ADMIN_SERVICE = {
     onGetData,

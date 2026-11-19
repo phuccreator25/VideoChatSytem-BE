@@ -98,7 +98,9 @@ const onUpdateProfile = async ({ _id, data, sessionId }) => {
 
         return newData;
     } catch (error) {
-        await session.abortTransaction();
+        if (session.inTransaction()) {
+            await session.abortTransaction();
+        }
         throw error;
     } finally {
         session.endSession();

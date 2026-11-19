@@ -13,6 +13,7 @@ import { BLOCK_REPOSITORY } from "../../../repository/block.repository.js";
 
 export const onDeleteMessage = async ({ conversationId, messageId, currentUserId }) => {
   const session = client.startSession();
+
   try {
     session.startTransaction();
 
@@ -153,7 +154,7 @@ export const onSearchMessageGlobal = async (currentUserId, keyword) => {
 
         if (currentUserId && msg.senderId) {
           const contactDetail = await CONTACTS_REPOSITORY.findContactDetails(currentUserId, msg.senderId);
-          
+
           if (contactDetail) {
             senderName = (contactDetail.nickname && contactDetail.nickname.trim())
               ? contactDetail.nickname

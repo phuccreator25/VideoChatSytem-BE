@@ -66,9 +66,9 @@ const onGetOrCreateConversation = async ({ currentUserId, userId }) => {
     await session.commitTransaction();
     return newConversation;
   } catch (error) {
-    console.log(error);
-
-    await session.endSession();
+    if (session.inTransaction()) {
+      await session.abortTransaction();
+    }
     throw error;
   } finally {
     await session.endSession();
@@ -77,8 +77,6 @@ const onGetOrCreateConversation = async ({ currentUserId, userId }) => {
 
 const onGetConversationById = async ({ conversationId, currentUserId }) => { // CHECK LÝ DO TRUY VẤN QUÁ LÂU
   if (!conversationId) throw new Error("Conversation ID is required");
-  console.log('start query: ', Date.now());
-
 
   const [conversation, participants] = await Promise.all([
     CONVERSATION_REPOSITORY.findOne({ _id: new ObjectId(conversationId), status: "active" }),
@@ -133,8 +131,6 @@ const onGetConversationById = async ({ conversationId, currentUserId }) => { // 
   if (!userData) {
     throw new Error("User not found");
   }
-
-  console.log('End query: ', Date.now());
 
   return {
     conversation: {
@@ -312,6 +308,9 @@ const onPinMessages = async ({
 
     return dataCreated;
   } catch (error) {
+    if (session.inTransaction()) {
+      await session.abortTransaction();
+    }
     throw error;
   } finally {
     session.endSession();
@@ -402,6 +401,9 @@ const onDeletePinMessages = async ({
 
     return dataDeleted
   } catch (error) {
+    if (session.inTransaction()) {
+      await session.abortTransaction();
+    }
     throw error;
   } finally {
     await session.endSession();

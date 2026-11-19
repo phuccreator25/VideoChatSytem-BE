@@ -25,12 +25,24 @@ const io = new Server(server, {
   transports: ["websocket"],
 });
 
+io.engine.on("connection_error", (err) => {
+  console.error("Socket connection failed:", {
+    code: err.code,
+    message: err.message,
+    context: err.context,
+  });
+});
+
 io.use(socketMiddleware);
 
 io.on("connection", async (socket) => {
   console.log(
     `User connected: ${socket.user?.fullname} (session: ${socket.sessionId})`
-  );
+  )
+
+  socket.on("error", (err) => {
+    console.error(`Socket runtime error (session: ${socket.sessionId}):`, err);
+  });
 
   await registerAuthSocket(io, socket);
   registerMessageSocket(io, socket);

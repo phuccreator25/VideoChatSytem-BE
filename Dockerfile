@@ -9,6 +9,7 @@ RUN apk add --no-cache dumb-init libc6-compat
 COPY package*.json ./
 
 RUN npm ci --omit=dev && npm cache clean --force
+RUN npm install -g @opentelemetry/api @opentelemetry/auto-instrumentations-node
 
 COPY . .
 

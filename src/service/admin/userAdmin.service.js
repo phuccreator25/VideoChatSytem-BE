@@ -105,7 +105,7 @@ const onUpdateAdmin = async ({ _id, payload, adminId }) => {
     try {
         session.startTransaction();
 
-        await USER_REPOSITORY.updateById( _id, { $set: updateData }, { session } );
+        await USER_REPOSITORY.updateById(_id, { $set: updateData }, { session });
 
         const isRoleChanged = Boolean(updateData.role && updateData.role !== checkUser.role);
 
@@ -121,7 +121,9 @@ const onUpdateAdmin = async ({ _id, payload, adminId }) => {
 
         await session.commitTransaction();
     } catch (error) {
-        await session.abortTransaction();
+        if (session.inTransaction()) {
+            await session.abortTransaction();
+        }
         throw (error)
     } finally {
         await session.endSession();
@@ -252,12 +254,14 @@ const onSendMailVerify = async ({ _id }) => {
         const activationLink = `${env.HOST_NAME}/active-account?token=${verifyToken}`;
 
         await USER_REPOSITORY.updateById(
-            checkUser._id ,
-            { $set: {
-                verifyToken,
-                expiredVerifyTokenAt,
-                updatedAt: new Date(),
-            }},
+            checkUser._id,
+            {
+                $set: {
+                    verifyToken,
+                    expiredVerifyTokenAt,
+                    updatedAt: new Date(),
+                }
+            },
         );
 
         await sendMailQueue.add("send-mail-queue", {

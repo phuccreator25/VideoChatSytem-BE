@@ -114,6 +114,9 @@ const onRemoveContact = async ({ ownerId, friendId }) => {
 
     return true;
   } catch (error) {
+    if (session.inTransaction()) {
+      await session.abortTransaction();
+    }
     throw error;
   } finally {
     session.endSession();
@@ -124,9 +127,9 @@ const onGetContactOfUserOnline = async (userId) => {
   const contacts = await CONTACTS_REPOSITORY.findMany(userId);
 
   const onlineContacts = contacts
-    .filter((contact) => 
-      isUserOnline(contact.userId) && 
-      !contact.isBlocked && 
+    .filter((contact) =>
+      isUserOnline(contact.userId) &&
+      !contact.isBlocked &&
       contact.userId !== userId
     )
     .map((contact) => ({

@@ -302,7 +302,9 @@ const onEndCall = async ({ callId, currentUserId, reason = null }) => {
         return finalCallData;
 
     } catch (error) {
-        await session.abortTransaction();
+        if (session.inTransaction()) {
+            await session.abortTransaction();
+        }
         throw error;
     } finally {
         session.endSession();
@@ -417,7 +419,6 @@ const onSpeedToTextCall = async ({ callId, transcript, currentUserId }) => {
             throw new Error(`User ${currentUserId} is not a participant in call ${callId}`);
         }
 
-        console.log(` Saved ${transcriptArray.length} transcript lines to DB successfully!`);
         return true;
 
     } catch (error) {
@@ -469,6 +470,9 @@ const onGenerateCallAISummary = async ({ callId }) => {
         return aiSummary;
 
     } catch (error) {
+        if (session.inTransaction()) {
+            await session.abortTransaction();
+        }
         if (error?.response?.status === 429) {
             throw new Error("Gemini AI is temporarily rate-limited. Please try again later!");
         }

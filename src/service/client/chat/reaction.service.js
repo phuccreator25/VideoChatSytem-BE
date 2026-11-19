@@ -78,6 +78,9 @@ export const onReactEmotion = async ({
     };
 
   } catch (error) {
+    if (session.inTransaction()) {
+      await session.abortTransaction();
+    }
     throw error;
   } finally {
     session.endSession();
@@ -147,6 +150,9 @@ export const onUnReactEmotion = async ({
     };
 
   } catch (error) {
+    if (session.inTransaction()) {
+      await session.abortTransaction();
+    }
     throw error;
   } finally {
     session.endSession();

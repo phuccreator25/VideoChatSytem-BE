@@ -191,6 +191,9 @@ const onAccept = async (payload, curretnUserId) => {
 
     return data;
   } catch (error) {
+    if (session.inTransaction()) {
+      await session.abortTransaction();
+    }
     throw error;
   } finally {
     session.endSession();

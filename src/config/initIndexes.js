@@ -2,21 +2,21 @@ import { GET_DB } from "./database.js";
 
 export const createDatabaseIndexes = async () => {
   const db = GET_DB();
-  console.log('--- Đang khởi tạo Database Indexes ---');
+  console.log('Start db indexs');
 
   const indexDefinitions = [
     {
       collection: 'users',
       indexes: [
         { key: { email: 1 }, unique: true },
-        { 
-          key: { username: 1 }, 
-          unique: true, 
+        {
+          key: { username: 1 },
+          unique: true,
           partialFilterExpression: { username: { $type: 'string' } } // sẽ khong báo lỗi nếu null
         },
-        { 
-          key: { verifyToken: 1 }, 
-          partialFilterExpression: { verifyToken: { $type: 'string' } } 
+        {
+          key: { verifyToken: 1 },
+          partialFilterExpression: { verifyToken: { $type: 'string' } }
         },
         { key: { isBanned: 1, isActive: 1, createdAt: -1 } },
         { key: { fullname: 'text', email: 'text', username: 'text' }, name: 'user_search_text_idx' },
@@ -119,11 +119,11 @@ export const createDatabaseIndexes = async () => {
   for (const { collection, indexes } of indexDefinitions) {
     try {
       await db.collection(collection).createIndexes(indexes);
-      console.log(`[Index] Khởi tạo thành công cho collection: ${collection}`);
+      console.log(`db index done: ${collection}`);
     } catch (error) {
-      console.error(`[Index] Lỗi khởi tạo cho collection ${collection}:`, error.message);
+      console.error(`db index failed ${collection}:`, error.message);
     }
   }
 
-  console.log('--- Hoàn tất khởi tạo Database Indexes ---');
+  console.log('all index done');
 };

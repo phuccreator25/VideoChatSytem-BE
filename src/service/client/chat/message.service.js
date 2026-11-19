@@ -279,20 +279,20 @@ export const processSendMessage = async ({
   conversationId,
   currentUserId,
 }) => {
+  const content = message?.content?.trim() || "";
+  const hasGif = message?.gifUrl;
+  const fileList = files || [];
+  const hasFiles = fileList.length > 0;
+
+  validateFileCount(fileList, "message");
+
+  if (!content && !hasFiles && !hasGif) {
+    throw new Error("Please enter the message content");
+  }
+
   const session = client.startSession();
 
   try {
-    const content = message?.content?.trim() || "";
-    const hasGif = message?.gifUrl;
-    const fileList = files || [];
-    const hasFiles = fileList.length > 0;
-
-    validateFileCount(fileList, "message");
-
-    if (!content && !hasFiles && !hasGif) {
-      throw new Error("Please enter the message content");
-    }
-
     session.startTransaction();
 
     const { receiverParticipant } = await validateDataMessage({
@@ -305,7 +305,6 @@ export const processSendMessage = async ({
     const attachments = buildAttachmentsPayload(files, message, now);
 
     let existingMessage = null;
-
     const isValidObjectId = (id) =>
       id && typeof id === "string" && ObjectId.isValid(id) && new ObjectId(id).toString() === id;
 
@@ -320,8 +319,9 @@ export const processSendMessage = async ({
       throw new Error("Message not found to resend.");
     }
 
+    let result;
     if (existingMessage) {
-      return await processResendMessageFlow({
+      result = await processResendMessageFlow({
         existingMessage,
         message,
         files,
@@ -329,18 +329,22 @@ export const processSendMessage = async ({
         currentUserId,
         session,
       });
+    } else {
+      result = await processNewMessage({
+        message,
+        files,
+        attachments,
+        conversationId,
+        currentUserId,
+        receiverParticipant,
+        now,
+        session,
+      });
     }
 
-    return await processNewMessage({
-      message,
-      files,
-      attachments,
-      conversationId,
-      currentUserId,
-      receiverParticipant,
-      now,
-      session,
-    });
+    await session.commitTransaction();
+    return result;
+
   } catch (error) {
     console.log("Error occurred while processing message:", message);
     if (session.inTransaction()) {
@@ -420,7 +424,6 @@ export const onTranslationMessage = async ({ messageId, currentUserId }) => {
     if (!translation || !translation.translation) throw new Error('Translation Failed');
 
     if (translation.detectedSourceLanguage === targetLangClean) {
-      console.log("Message is already in the target language");
       return {
         translation: message.content,
         targetLanguage: targetLangClean,
@@ -444,6 +447,7 @@ export const onTranslationMessage = async ({ messageId, currentUserId }) => {
       messageId,
     };
   } catch (error) {
+    console.error('Translation Failed', error);
     throw error;
   }
 };

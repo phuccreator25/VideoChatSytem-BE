@@ -61,9 +61,6 @@ const updateVectorStatus = async (req, res) => {
     const { callId } = req.params;
     const { status } = req.body;
 
-    console.log('status', status);
-    console.log('callId', callId);
-
     await CALL_SERVICE.onUpdateVectorStatus({ callId, status })
 
     return res.json({ success: true, message: `Updated vector status to ${status}` });

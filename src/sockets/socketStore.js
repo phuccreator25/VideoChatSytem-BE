@@ -57,7 +57,6 @@ export function addUserSocket(userId, sessionId, socket) {
     pendingOfferMap.delete(String(userId));
     CALL_REPOSITORY.findOne({ _id: new ObjectId(pendingOffer.callId) }).then((call) => {
       if (call && call.status === callStatuses.RINGING) {
-        console.log(` User ${userId} vừa online! Bù lại gói call:offer đang chờ.`);
         clearCallTimer(pendingOffer.callId);
 
         emitCallOffer(userId, pendingOffer);
@@ -66,13 +65,14 @@ export function addUserSocket(userId, sessionId, socket) {
         setCallTimer(pendingOffer.callId, setTimeout(async () => {
           try {
             const currentCall = await CALL_REPOSITORY.findOne({ _id: new ObjectId(pendingOffer.callId) });
+
             if (currentCall && currentCall.status === callStatuses.RINGING) {
-              console.log(`⏱️ Cuộc gọi ${pendingOffer.callId} hết 20s không nhấc máy (No Answer) -> Tự động hủy.`);
               await CALL_SERVICE.onEndCall({
                 callId: pendingOffer.callId,
                 currentUserId: pendingOffer.callerId,
               });
             }
+
           } catch (err) {
             console.error("Lỗi khi xử lý timeout cuộc gọi không phản hồi:", err);
           }

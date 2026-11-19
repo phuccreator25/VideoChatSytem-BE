@@ -28,7 +28,7 @@ export const registerMessageSocket = (io, socket) => {
         conversationId,
         ...result,
       });
-      
+
     } catch (error) {
       console.error("messages:read error:", error);
 
@@ -57,22 +57,17 @@ export const registerTypingMessageSocket = (io, socket) => {
 
       const targetUserIdString = targetUserId.toString();
 
-      console.log('result: ', targetUserId);
-      console.log('typing: ', isTyping);
-      
-      // return
-
       emitToUser(targetUserIdString, "messages:typing:success", {
         conversationId,
         isTyping,
         targetUserId: targetUserIdString
       });
-      
+
     } catch (error) {
-      console.error("messages:read error:", error);
+      console.error("messages:typing error:", error);
 
       socket.emit("messages:typing:error", {
-        message: error.message || "Mark conversation as read failed",
+        message: error.message || "Typing Failed",
       });
     }
   });

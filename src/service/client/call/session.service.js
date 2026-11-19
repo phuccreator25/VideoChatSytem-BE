@@ -206,7 +206,6 @@ export const onEndCall = async ({ callId, currentUserId, reason = null }) => {
         }
 
         await session.commitTransaction();
-        session.endSession();
 
         if (shouldCloseUI && createdCallMessage) {
             const messageCreated = await MESSAGE_REPOSITORY.findMessageAfterSend(createdCallMessage._id);
@@ -247,7 +246,9 @@ export const onEndCall = async ({ callId, currentUserId, reason = null }) => {
         return finalCallData;
 
     } catch (error) {
-        await session.abortTransaction();
+        if (session.inTransaction()) {
+            await session.abortTransaction();
+        }
         throw error;
     } finally {
         session.endSession();

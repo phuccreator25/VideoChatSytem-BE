@@ -151,7 +151,9 @@ export const onForwardMessageSingle = async ({ messageId, targetUserId, senderId
 
     return createdMessage;
   } catch (error) {
-    await session.abortTransaction();
+    if (session.inTransaction()) {
+      await session.abortTransaction();
+    }
     throw error;
   } finally {
     session.endSession();
